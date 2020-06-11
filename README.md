@@ -8,7 +8,7 @@ I updated this ever so slightly to get it to work on my 200Mhz RISC PC back in t
 
 I still run RISC OS; and run this FORTH; these days on a 1.5Ghz processor.
 
-In theory all you need is the source and the Kernel file (which is a binary) to get started; not tested that this works; will that.
+In theory all you need is the source and the Kernel file (which is a binary) to get started; not tested that this works; will test that.
 
 This FORTH is interesting as it (true to its Win32Forth roots) is a meta compiler.
 

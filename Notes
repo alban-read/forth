@@ -1,15 +1,8 @@
 
 Notes
 
-This forth for RISC OS by Martin Läuter is inspired by Win32Forth by Andrew McKewan and Tom Zimmer. 
-It seems to have been written around 1994.
-I think I found a copy of this FORTH aound Y2K; and ran it on my 200Mhz RISC PC.
-I still run RISC OS; now on a 1.5Ghz processor.
- 
+See original !HELP
 
-
-
- 
 Register usage
 
 R9  OP
@@ -29,8 +22,6 @@ Added code sync to allow the compiler to work on the StrongARM processor.
 Other modifications
 Changed the definition of centre: ( the window was not on the screen.)
 Stopped processing the command line as it picks up garbage from the RISCOS buffer most of the time.
-
-
 
 Updated current-dir$ to use the current file system 
  

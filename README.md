@@ -2,7 +2,7 @@
 
 !WimpForth (Wimp being windows icons mouse and pointers)
 
-This FORTH is for RISC OS by Martin Läuter is inspired by Win32Forth by Andrew McKewan and Tom Zimmer
+This RISCOS FORTH by Martin Läuter is inspired by Win32Forth by Andrew McKewan and Tom Zimmer
 
 I updated this ever so slightly to get it to work on my 200Mhz RISC PC back in the day.
 

@@ -24,6 +24,7 @@ I guess that the original author may have done that; probably starting from the 
 
 In any event I still enjoy and use this FORTH; for poking around my ARM based system.
 
+The original author granted permissions to copy and use the software; see !HELP file.
 
 
 

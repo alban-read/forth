@@ -1,0 +1,66 @@
+
+Notes
+
+This forth for RISC OS by Martin Läuter is inspired by Win32Forth by Andrew McKewan and Tom Zimmer. 
+It seems to have been written around 1994.
+I think I found a copy of this FORTH aound Y2K; and ran it on my 200Mhz RISC PC.
+I still run RISC OS; now on a 1.5Ghz processor.
+ 
+
+
+
+ 
+Register usage
+
+R9  OP
+R10 TOS - top of stack
+R11 IP  - forth instruction pointer
+R12 RP  - return pointer (return stack)
+R13 SP  - data stack
+R14 link - used by branch instructions
+R15 PC	- program counter
+
+
+Minor changes
+
+modifications to work on the RISC PC.
+Added code sync to allow the compiler to work on the StrongARM processor.
+
+Other modifications
+Changed the definition of centre: ( the window was not on the screen.)
+Stopped processing the command line as it picks up garbage from the RISCOS buffer most of the time.
+
+
+
+Updated current-dir$ to use the current file system 
+ 
+
+FWIMP is the Wimp app that is run.
+FCONS is a console app.
+
+rebuild
+
+.. The kernal
+
+start FWIMP or FCONS
+fload meta
+kernal app is made (around 26k)
+bye
+
+.. The forth
+
+click on kernal
+fload extend
+.. FWIMP is saved (around 140k)
+bye
+     
+.. remake console app
+
+clock on kernal
+fload makeconsole
+..FCONS is saved
+bye
+
+
+You now have a new forth
+

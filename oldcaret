@@ -1,0 +1,7 @@
+                 
+ : SetCaret ( -- )
+    0 &02000020
+    ycur 1+ -32*  xcur 16*
+    -1 Hwnd
+    Wimp_SetCaretPosition
+    ;

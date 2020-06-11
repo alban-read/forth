@@ -1,0 +1,96 @@
+\ DTHREAD.F             Display the Threads             by Tom Zimmer
+
+cr .( Loading the Hash Thread Display words...)
+
+0 value thread-depth
+
+0 value words-cnt
+0 value header-cnt
+
+: count-voc     ( voc -- )
+                dup voc#threads >r
+                dup voc>vcfa call@
+                dup  doClass  =           \ don't look through classes
+                swap do|Class = or 0=     \ or invisible classes
+        if      r@ 0
+                do      dup i cells +
+                        begin   @ ?dup
+                        while   1 +to words-cnt
+                                dup l>name c@ 1+ 2 cells+ +to header-cnt
+                        repeat  start/stop
+                loop
+        then    drop r>drop ;
+
+: count-words   ( -- n1 )
+                0 to words-cnt
+                0 to header-cnt
+                voc-link
+                begin   @ ?dup
+                while   dup vlink>voc count-voc
+                repeat  words-cnt ;
+
+: .words        ( -- )
+                count-words . ;
+
+: .1thread      ( voc-thread -- )
+                0 to thread-depth
+                begin   ?dup
+                while   dup l>name .id 10 ?cr
+                        @
+                        1 +to thread-depth
+                        start/stop
+                repeat  cr ." Thread depth: " thread-depth . cr ;
+
+: 1tcount       ( voc-thread -- n1 )    \ get thread depth of voc thread
+                0 to thread-depth
+                begin   @ ?dup
+                while   1 +to thread-depth
+                        start/stop
+                repeat  thread-depth ;
+
+: .thread       ( n1 -- )       \ display a thread of context vocabulary
+                >r
+                context @ dup voc>vcfa >name cr ." Vocabulary: " .id cr
+                ." Thread " r@ .
+                dup voc#threads ."  of " dup . ."  threads" cr
+                r> min 0max cells+ @ .1thread ;
+
+: .threads      ( -- )
+                context @ dup voc>vcfa >name cr ." Vocabulary: " .id
+                dup voc#threads 0
+                do      cr ." Thread: " i . cr
+                        dup i cells + @ .1thread
+                        start/stop
+                loop    drop ;
+
+: .counts       ( -- )
+                context @ dup voc>vcfa >name cr ." Vocabulary: " .id cr
+                dup voc#threads 0
+                do      26 ?line
+                         ."     Thread: "   i                 3 .r
+                        ."   depth:"
+                        dup i               cells + @ 1tcount 4 .r
+                        start/stop
+                loop    drop
+                0 to words-cnt
+                cr ."   Vocabulary words: " context @ count-voc words-cnt .
+                cr ." Total system words: " count-words . ;
+
+0 value tot-1thread
+
+: 1thread       ( thread -- n1 )        \ count this thread in all vocs
+                0 to tot-1thread
+                voc-link
+                begin   @ ?dup
+                while   2dup vlink>voc
+                        dup voc>vcfa call@
+                        dup  doClass =          \ skip class vocs
+                        swap doClass = or 0=    \ skip invisible class vocs
+                        if      swap cells+
+                                1tcount +to tot-1thread
+                        else    2drop
+                        then
+                repeat  drop
+                tot-1thread ;
+
+

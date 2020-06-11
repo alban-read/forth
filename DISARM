@@ -1,0 +1,210 @@
+\ DISARM   ARM Disassembler
+
+cr .( Loading the ARM Disassembler...)
+
+\ use: ' + dis
+
+FORTH DEFINITIONS
+DECIMAL
+
+VOCABULARY DISARM
+
+\ : COL   ( n -- )
+\         #OUT @ - SPACES ;
+
+variable cp
+
+VARIABLE SYMBOLIC \ Show registers as FORTH registers
+        SYMBOLIC ON
+
+VARIABLE RELOC    \ Relocation factor for dump or dis ???
+        RELOC OFF
+
+0 value stopnow
+
+0 value maxcp
+
+DISARM DEFINITIONS
+
+: +RELOC   ( a -- )
+        RELOC @ + ;
+
+: (T@)   ( a -- w )
+        +RELOC @ ;
+
+DEFER T@   ( a -- w )
+
+: MEMORY
+        ['] (T@)  IS T@ ;
+        MEMORY
+
+: .,   ( -- )
+        ." , " ;
+
+0 value flag
+
+: .cond ( inst -- inst )
+    " eqnecsccmiplvsvchilsgeltgtle  nv" drop over 28 rshift 2* + 2 type space ;
+
+: .sh ( nr -- )
+    2* 2* " lsl lsr asr ror " drop + 4 type ;
+
+: reg$ ( -- adr ) 
+    symbolic @
+    if   " r0  r1  r2  r3  r4  r5  r6  r7  r8  op  tos ip  rp  sp  linkpc  "
+    else " r0  r1  r2  r3  r4  r5  r6  r7  r8  r9  r10 r11 r12 r13 r14 r15 "
+    then drop ;
+
+: .#reg ( nr -- )
+    2* 2* reg$ + 4 -trailing type ;
+
+: .reg ( inst pos -- inst )
+    over swap rshift 15 and .#reg ;
+
+: ror ( nr -- nr' )
+    dup 1 and >r u2/ r> if &80000000 or then ;
+
+: spec ( inst -- )
+    0 to flag
+    dup &fc00000 and 0=
+    if dup &200000 and if ." mla " -1 to flag else ." mul " then
+      dup &100000 and if ." s " then
+      .cond 18 col
+      16 .reg ., 0 .reg ., 8 .reg
+      flag if ., 12 .reg then drop
+    else
+      dup &fb00ff0 and &1000090 =
+      if ." swp" dup &400000 and if ." b" then space
+        12 .reg ., 0 .reg ." , [ " 16 .reg ."  ]" drop
+      else drop " Undefined Instruction"
+      then
+    then ;
+
+: dpi ( inst -- )
+    dup &2000000 and 0= if
+      dup 4 rshift dup 3 rshift and 1 and
+      if spec exit then
+    then
+    dup 19 rshift 60 and dup 2 rshift to flag
+    " and eor sub rsb add adc sbc rsc tst teq cmp cmn orr mov bic mvn " drop
+    + 4 type
+    dup &100000 and if ." s " then
+    .cond 18 col
+    flag 8 11 between 0= 
+      if 12 .reg .,
+        dup &f000f000 and &e000f000 = to stopnow
+      then
+    flag 13 xor 13 and if 16 .reg ., then
+    dup &2000000 and
+    if ." # " dup &ff and swap 7 rshift 30 and 0
+      ?do ror loop u.
+    else
+      0 .reg
+      dup &ff0 and
+      if ., dup &ff0 and &60 =
+        if ." rrx" drop
+        else
+          dup 4 rshift dup 1 and swap u2/ 3 and .sh
+          if  8 .reg drop else ." # " 7 rshift 31 and . then
+        then
+      else drop
+      then
+    then ;
+    
+: sdt0 ( inst -- inst )
+    dup &2000000 and
+    if ., dup &800000 and 0= if ." -" then
+      0 .reg dup 5 rshift 3 and dup 0=
+      if over &f80 and 
+        if ., .sh dup 7 rshift 31 and ." # " . else drop space then
+      else ., .sh dup 7 rshift 31 and ." # " .
+      then
+    else   
+      dup &fff and
+      if ." , # " dup &800000 and 0= if ." -" then
+         dup &fff and .
+      else space
+      then
+    then ;
+
+: sdt ( inst -- )
+    dup &100000 and
+    if ." ldr" dup &f000 and &f000 = if dup 28 rshift &e = to stopnow then
+    else ." str" then
+    dup &400000 and
+    if ." b" then space
+    .cond 18 col
+    12 .reg
+    ." , [ " 16 .reg
+    dup &1000000 and
+    if sdt0 ." ]"
+      &200000 and if ." !" then
+    else ."  ]" sdt0 
+      &200000 and if ."  t" then
+    then ;
+
+: bdt ( inst -- )
+    dup 22 rshift 6 and over &100000 and
+    if ." ldm" over dup &8000 and swap 28 rshift &e = and to stopnow
+    else ." stm" 6 swap - then
+    " fafdeaed" drop + 2 type space
+    .cond 18 col
+    16 .reg dup &200000 and if ."  !" then ." , { "
+    0 to flag 
+    16 0 do dup 1 and
+      if flag if ., else -1 to flag then
+         i .#reg
+      then u2/
+    loop ."  }"
+    &40 and if ."  ^" then ;
+
+: bra ( inst -- )
+    ." b" dup &01000000 and
+    if ." l" else dup 28 rshift &e = to stopnow then space
+    .cond 18 col
+    dup 8 lshift 0< if &ff000000 or else &ffffff and then 2 + cells cp @ +
+    dup maxcp > if dup to maxcp then 
+    dup ['] unnest = stopnow or to stopnow 
+    u. ;
+
+: cop ( inst -- ) drop ." Coprocessor instruction" ;
+
+create int0   -4 dp +!
+  &e1a0000a ,  \ mov r0, tos
+  &e8bd0006 ,  \ ldmfd sp !, { r1, r2 }
+  &ef000038 ,  \ swi " OS_SWINumberToString"
+  &e1a0a002 ,  \ mov tos, r2
+  &e49bf004 ,  \ next  
+  
+: int ( inst -- )
+    dup &01000000 and
+    if ." swi " .cond 18 col ascii " emit space
+      &ffffff and 40 here rot int0 here swap 1- type
+      ascii " emit
+    else cop
+    then ;
+
+: inst ( ad -- )
+    t@ dup 25 rshift 7 and exec: dpi dpi sdt sdt bdt bra cop int ;
+
+: .CODE-NAME   ( -- )
+    ." CODE " CP @ >NAME .ID CR ;
+
+forth definitions
+
+: DIS   ( a -- )           \ disassemble from address
+        [ DISARM ] dup to maxcp CP !
+        base @ >r HEX
+        0 to STOPNOW   
+        .CODE-NAME
+        BEGIN   CP @ ." (" DUP 6 U.R ." ) " INST
+\                CP @ OVER - 2DUP SPACE DUMP| 69 COL TYPE_
+                ?STACK CR
+                4 cp +!
+                maxcp cp @ >= if 0 to stopnow then
+                stopnow
+        UNTIL   r> base ! ;
+
+' dis hidden is discode
+
+forth

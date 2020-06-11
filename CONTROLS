@@ -1,0 +1,299 @@
+\ Dialog box objects
+cr .( Loading generic wimp controls...)
+
+comment:
+    DIALOG is a special WINDOW class which contains control icons,
+    such as DISPLAYFIELDs, TEXTLABELs, ACTIONBUTTONs, WRITABLEFIELDs,
+    OPTIONBUTTONs, RADIOBUTTONs, METERs and HSLIDERs.
+    The end of this file will demonstrate an overful example.
+comment;
+
+create %actbut ," R5,3"
+create %dacbut ," R6,3"
+create %disfld ," R2"
+create %wrifld ," Ktar;Pptr_write"
+create %optbut ," soptoff,opton"
+create %radbut ," sradiooff,radioon"
+create %upaarr ," R5;sup,pup"
+create %dwnarr ," R5;sdown,pdown"
+create %slider ," R2"
+create %popupm ," R5;sgright,pgright"
+create %grpbox ," R4"
+
+:class dialog <super window
+:m ClassInit: ( -- )
+     ClassInit: super
+     [ WF_Movable          nostack1
+       WF_WimpRedraws or
+       WF_Outside     or
+       WF_ScrollReqAR or
+       WF_IgnoreR     or
+       WF_IgnoreL     or
+       WF_TitleBar    or ] literal 0 ChangeWFlags
+     Black Gray1 SetWaColour
+     BT_Ignore to WBType ;m
+0 value #ESG
+: BeginESG ( -- )
+    1 +to #ESG #ESG negate nostack1 ;
+: EndESG   ( -- ) drop nostack1 ;
+: BeginIcons
+    0 to #icons 0 to #ESG ;
+: EndIcons ;
+:m NewIcon:   ( -- n )
+     #icons 1 +to #icons ;m
+;class nostack1
+
+|class actionbutton <super generic-icon
+:m ClassInit: ( -- )
+     ClassInit: super
+     [ IF_Text             nostack1
+       IF_VCentered    or
+       IF_HCentered    or
+       IF_IndData      or
+       BT_Click        or
+       IF_Border       or
+       IF_FilledBG     or ] literal 0 ChangeIFlags: self
+     Black Gray1 SetColour: self
+     %actbut 1+ IconData cell+ ! ;m
+:m SetText:   ( ^str -- )
+     dup SetIndirText
+     c@ 1+ 16* 10 + 52 SetSize: self ;m
+:m Start:     ( window -- )
+     NewIcon: [[ ]] drop ;m
+;class nostack1
+
+:class defactionbutton <super actionbutton
+:m ClassInit: ( -- )
+     ClassInit: super
+     %dacbut 1+ IconData cell+ ! ;m
+:m SetText:   ( ^str -- )
+     dup SetIndirText
+     c@ 1+ 16* 18 + 68 SetSize: self ;m
+;class
+
+:class textlabel <super generic-icon
+:m ClassInit:  ( -- )
+     [ IF_VCentered IF_IndData or IF_Text or ] literal
+     &ff000000 ChangeIFlags: self
+     Black White SetColour: self
+     0 52 SetSize: self ;m
+:m Start:     ( window -- )
+     NewIcon: [[ ]] drop ;m
+:m SetText:    ( ^str -- )
+     dup c@ 16* 52 SetSize: self
+     SetText: super ;m
+;class
+
+:class rtextlabel <super textlabel
+:m Move:     ( x y -- )
+     dup ymax ymin - + to ymax to ymin
+     dup xmax xmin - - to xmin to xmax ;m
+;class
+
+:class displayfield <super textlabel
+:m ClassInit:  ( -- )
+     ClassInit: super
+     [ IF_VCentered     nostack1
+       IF_IndData   or
+       IF_HCentered or
+       IF_Border    or
+       IF_Text      or ] literal &ff000000 ChangeIFlags: self
+     %disfld 1+ IconData cell+ ! ;m
+:m SetLength:  ( n -- )
+     16* 12 + xmin + to xmax ;m
+:m SetText:    ( ^str -- )
+     SetIndirText ;m
+;class
+
+:class writablefield <super displayfield
+:m ClassInit:  ( -- )
+     ClassInit: super
+     [ BT_Caret IF_FilledBG or ] literal -1 ChangeIFlags: self
+     %wrifld 1+ IconData cell+ ! ;m
+:m SetBuffer:  ( ad len -- )
+     IconData 8 + ! IconData ! ;m
+:m SetText:    ( ^str -- )
+     count IconData @ ?dup
+     if swap 1+ cmove
+     else true abort" Set Buffer for writable Field first"
+     then ;m
+:m Read:       ( -- ^str )
+     IconData @ ;m
+;class
+
+:class optionbutton <super generic-icon
+:m ClassInit: ( -- )
+     ClassInit: super
+     [ IF_Text             nostack1
+       IF_Sprite       or
+       IF_VCentered    or
+       IF_IndData      or
+       BT_1/Drag       or ] literal &ff000000 ChangeIFlags: self
+       Black Gray1 SetColour: self
+     %optbut 1+ IconData cell+ ! ;m
+:m SetText:   ( ^str -- )
+     dup SetIndirText
+     c@ 1+ 16* 44 + 44 SetSize: self ;m
+:m Start:     ( window -- )
+     NewIcon: [[ ]] drop ;m
+;class nostack1
+
+:class radiobutton <super optionbutton
+:m ClassInit: ( -- )
+     ClassInit: super
+     %radbut 1+ IconData cell+ ! ;m
+:m SetText:   ( esg ^str -- esg' )
+     SetText: super
+     dup abs dup 16 lshift rot
+       0< IF_Sel/Inv and or IFlags or to IFlags ;m
+;class
+comment:
+:class upadjarrow <super generic-icon
+:m ClassInit: ( x y -- )
+     ClassInit: super
+     xmax xmin - 32 + 44 SetSize: self
+     [ IF_Text             nostack1
+       IF_Sprite       or
+       IF_VCentered    or
+       IF_IndData      or
+       BT_ClickAR      or ] literal &ff000000 ChangeIFlags: self
+     %upaarr 1+ IconData cell+ ! ;m
+;class nostack1
+
+:class downadjarrow <super generic-icon
+:m ClassInit: ( x y -- )
+     ClassInit: super
+     xmax xmin - 32 + 44 SetSize: self
+     [ IF_Text             nostack1
+       IF_Sprite       or
+       IF_VCentered    or
+       IF_IndData      or
+       BT_ClickAR      or ] literal &ff000000 ChangeIFlags: self
+     %dwnarr 1+ IconData cell+ ! ;m
+;class nostack1
+comment;
+
+:class meter <super generic-icon
+generic-icon well
+generic-icon backg
+int maxval
+int xsize
+int Wobj
+int Ihndl
+:m ClassInit: ( -- )
+     ClassInit: super
+     [ IF_Text IF_IndData or IF_Border or BT_Click or ] literal
+     &ff000000 ChangeIFlags: well
+     temp$ %slider 1+ 1 SetIconData: well
+     Black Gray1 SetColour: well
+     [ IF_Sprite IF_FilledBG or BT_Click or ] literal &ff000000 ChangeIFlags: backg
+     White White SetColour: backg
+     [ IF_Sprite IF_FilledBG or BT_Click or ] literal 0 ChangeIFlags: self
+     Gray5 Gray5 SetColour: self ;m
+:m SetMax/Len: ( max n -- )
+     dup  16 SetSize: backg
+     dup 20 + 36 SetSize: well
+     to xsize to maxval ;m
+:m Write:      ( n -- )
+     maxval min 0max
+     xsize maxval */ 16 SetSize: self
+     GetHandle: [[ Wobj ]] ?dup if
+       dup>r pad ! Ihndl pad cell+ !
+       pad Wimp_GetIconState
+       pad Wimp_DeleteIcon
+       r@ pad cell+ tuck !
+         xmax over 12 + dup @ >r !
+         Ihndl Wimp_CreateIcon drop
+       ymin 16 + xmax r@ max ymin xmax r> min
+         r> Wimp_ForceRedraw pause
+     then ;m
+:m Move:       ( x y -- )
+     2dup Move: well
+     swap 10 + swap 12 + 2dup
+     Move: backg Move: super ;m
+:m Build:      ( -- )
+     Build: well
+     Build: backg
+     Build: super ;m
+:m Start:     ( window -- )
+     dup NewIcon: [[ ]] drop
+     dup NewIcon: [[ ]] drop
+     dup to Wobj
+     NewIcon: [[ ]] to ihndl ;m
+;class
+
+:class hslider <super meter
+:m Read:       ( -- n )
+     xmax xmin - maxval xsize */ ;m
+:m On_Select:   ( block -- )
+     @ GetHandle: [[ Wobj ]] pad dup>r !
+     r@ Wimp_GetWindowState
+     r> 4 + @ - xmin - maxval * xsize 2/ + xsize /
+     Write: self ;m
+;class
+
+\s An Example
+
+:Object fd <super dialog
+writablefield Text
+actionbutton OKBut
+radiobutton DefRB
+radiobutton OtherRB
+hslider slid
+displayfield disp
+20 bytes writebuffer
+:m On_Init:    ( -- )
+     500 350  2dup  SetSize: self  SetWaSize: self  \ my own size
+     c" My Dialog"  SetTitleText: self              \ my title text
+     BeginIcons
+       self               Start: Text               \ register with dialog window
+       16             SetLength: Text               \ maximal width (otherwise 0)
+       32 -55              Move: Text               \ position in window
+       writebuffer 17 SetBuffer: Text               \ the buffer
+       c" Martin"       SetText: Text               \ initial text
+       self      Start: OKBut
+       c" OK"  SetText: OKBut
+       32 -115    Move: OKBut
+       80 55   SetSize: OKBut                       \ make it bigger than standard
+       BeginESG
+         self          Start: DefRB
+         c" Default" SetText: DefRB
+         32 -159 Move: DefRB
+         self        Start: OtherRB
+         c" Other" SetText: OtherRB
+         32 -203 Move: OtherRB
+       EndESG
+       self Start: slid  32 -255 Move: slid
+       16 400 SetMax/Len: slid                      \ scale the meter
+       6 Write: slid                                \ initial value
+       self Start: disp  32 -310 Move: disp
+       16 SetLength: disp                           \ maximal width (otherwise 0)
+       c" Das ist Text" SetText: disp
+     EndIcons ;m
+:m On_Select:  ( block -- )                         \ select was pressed on
+     dup 16 + @                                      \ the dialog
+     case
+       1 of drop Stop: self endof                   \ on button?
+       4 6 of-range drop On_Select: slid endof      \ or on slider?
+       .                                            \ on other
+     endcase ;m
+:m On_Adjust:  ( block -- )                         \ adjust was pressed
+     ." Adjust?" 16 + @ . ;m
+:m On_Done:    ( -- res )                           \ window is about to be
+     Read: Text zcount type space Read: slid . ;m    \ deleted
+:m Build:     ( ad -- ad' )                         \ Build: the window header
+     Build: super                                   \ and then all icons
+     Build: Text
+     Build: OKBut
+     Build: DefRB
+     Build: OtherRB
+     Build: slid
+     Build: disp ;m
+;Object
+
+popup fdp "Hot Dialog"                              \ context sensitive menu
+  menuitem "Quit" stop: fd ;                         
+fdp &Popup: fd !                                    \ adhered to the dialog
+
+400 400 start: fd                                   \ start the thing
+

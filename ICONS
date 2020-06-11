@@ -1,0 +1,110 @@
+\ Risc OS Icons
+cr .( Loading generic icons support...)
+
+code Wimp_CreateIcon ( buf ihndl -- ihndl )
+  mov r0, tos
+  ldmfd sp !, { r1 }
+  swi " Wimp_CreateIcon"
+  mov tos, r0
+next c;
+
+code Wimp_DeleteIcon ( buf -- )
+  mov r1, tos
+  swi " Wimp_DeleteIcon"
+  ldmfd sp !, { tos }
+next c;
+
+code Wimp_GetIconState ( buf -- )
+  mov r1, tos
+  swi " Wimp_GetIconState"
+  ldmfd sp !, { tos }
+next c;
+
+code 16*
+  mov tos, tos, lsl # 4
+next c;
+
+-1 constant WH_IconBarR
+-2 constant WH_IconBarL
+
+&1   constant IF_Text
+&2   constant IF_Sprite
+&4   constant IF_Border
+&8   constant IF_HCentered
+&10  constant IF_VCentered
+&20  constant IF_FilledBG
+&40  constant IF_AntiAliasedFont
+&80  constant IF_NeedsRedrawHelp
+&100 constant IF_IndData
+&200 constant IF_RJustifText
+&400 constant IF_ExclESG
+&800 constant IF_HalfSizeSprite
+
+    0 constant BT_Ignore
+&1000 constant BT_Over
+&2000 constant BT_ClickAR
+&3000 constant BT_Click
+&4000 constant BT_Release
+&5000 constant BT_2Click
+&6000 constant BT_Click+Drag
+&7000 constant BT_Release+Drag
+&8000 constant BT_2Click+Drag
+&9000 constant BT_Over+Click
+&a000 constant BT_1/Drag/2
+&b000 constant BT_1/Drag
+&e000 constant BT_Caret+Drag
+&f000 constant BT_Caret
+
+&200000 constant IF_Sel/Inv
+&400000 constant IF_Shaded
+&800000 constant IF_Deleted
+
+:class generic-icon <super object
+int xMin
+int yMin
+int xMax
+int yMax
+int IFlags
+12 bytes IconData
+
+:m ChangeIFlags: ( n mask -- )
+     IFlags and or to IFlags ;m
+:m SetColour: ( fg bg -- )
+     4 lshift swap &f and or 24 lshift
+     &ffffff ChangeIFlags: self ;m
+:m ClassInit: ( -- )
+     0 to IFlags
+     Black White SetColour: self
+     IconData 12 erase ;m
+:m Move: ( x y -- )
+     dup ymax ymin - + to ymax to ymin
+     dup xmax xmin - + to xmax to xmin ;m
+:m SetSize:   ( dx dy -- )
+     ymin + to ymax
+     xmin + to xmax ;m
+:m SetText:  ( ^str -- )
+     dup c@ 12 <
+     if   count >r IconData r@ move 0 IconData r> + c!
+          iflags [ IF_IndData invert ] literal and to iflags
+     else count
+          IconData 8 + ! IconData ! IconData cell+ on
+          iflags IF_IndData or to iflags 
+     then ;m
+:m Build: ( ad -- ad' )
+     ^base over 32 move 32 + ;m
+: SetIndirText ( ^str -- )
+     count IconData 8 + ! IconData ! ;
+:m SetIconData: ( a b c -- )
+     IconData dup>r 8 + ! r@ 4 + ! r> ! ;m
+;class
+
+:class icon <super object <classpointer
+int hWnd
+generic-icon iconblock
+int hIcon
+:m Create:
+     ^base hIcon Wimp_CreateIcon to hIcon ;m
+:m Delete:
+     hWnd here ! hIcon here cell+ !
+     here Wimp_DeleteIcon ;m
+;class

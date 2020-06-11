@@ -1,0 +1,82 @@
+\ $Id: words.f $
+
+cr .( Loading WORDS...)
+
+\ display words from one or two patterns
+\ use: words
+\  or: words +!
+\  or: words ! 2
+
+: horizontal-line ( -- )
+                getcolrow drop getxy drop - 1- 0max 8 /mod 0
+                ?do     ." --------"
+                loop    s" --------" drop swap type
+                cr ;
+
+only forth also hidden also definitions
+
+  variable vocsave
+
+create words-pad    260 allot
+create words-pocket 260 allot
+
+: .voc-once     ( -- )
+                vocsave @ ?dup
+                if      cr ." ----------- " >name .id
+                        horizontal-line
+                        vocsave off
+                then    ;
+
+: match?        ( addr len -- f )
+                2dup >r >r words-pocket count search nip nip
+                pocket  c@
+                if      r> r>    pocket count search nip nip and
+                else    r> r> 2drop
+                then       words-pocket c@ 0= or ;
+
+0 value w#threads
+
+: (words)       ( voc -- )
+                dup voc#threads to w#threads
+                dup voc>vcfa call@
+                dup   doClass =         \ don't look through classes
+                swap do|Class = or 0=   \ don't look through classes
+        if      dup here 500 + w#threads cells move     \ copy vocabulary up
+                voc>vcfa vocsave !
+                begin   here 500 + w#threads largest dup
+                while   dup l>name nfa-count 2dup 255 min words-pad place
+                        words-pad ?uppercase count match?
+                        if      .voc-once
+                                type 20 #tab space 20 ?cr
+                                1 +to words-cnt
+                        else    2drop
+                        then
+                        @ swap !
+                        start/stop
+                repeat  2drop
+        else    drop
+        then    vocsave off ;
+
+forth definitions
+
+: words         ( -<optional-name>- )
+                0 to words-cnt
+                words-pocket off
+                bl word ?uppercase c@
+                if      pocket count words-pocket place
+                        bl word ?uppercase drop
+                        voc-link @
+                        begin   dup vlink>voc
+                                (words) @ dup 0=
+                        until   drop
+                else    context @ (words)
+                then
+                base @ >r decimal
+                cr horizontal-line
+                ." Displayed " words-cnt . ." of the "
+                count-words . ." words in the system."
+                r> base ! ;
+
+only forth also
+
+

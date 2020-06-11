@@ -1,0 +1,846 @@
+\ load extensions
+
+cr .( Loading the Primitive utilities...)
+
+\   This file holds some basic utilities added first to the kernel.
+\   Beside the ones one should expect in a Forth system there are others:
+\     comment $  This can be a multiline comment without dollar $
+\     synonym newword oldword      \ newword will do the same as oldword
+\     defer@ deferredword          \ gets word to which deferredword points
+\     +null                        \ appends 0 to string
+\     z" Yes"                      \ zero-terminated string
+\     gotoxy getxy getcolrow col   \ screen coordinates
+\     cols rows                    \  "
+\     tab #tab ?line               \ tabs and conditional cr
+\     \+ \-                        \ conditional ignoring of lines
+\     ,"text"                      \ compile "string" into dict
+\     Several number display words
+\     trim                         \ trims chains for forget
+\     new-chain , chain-add , do-chain   \ chain mechanism
+\     Number will recognise &hex and %binary numbers
+
+decimal                                 \ start everything in decimal
+
+: cmdline 32788 @ zcount ;
+
+: ascii    char          state @ if postpone literal then ; immediate
+: alt      char 4096  or state @ if postpone literal then ; immediate
+: ctrl     char   31 and state @ if postpone literal then ; immediate
+
+: 0>=  0< 0= ;
+: 0<=  0> 0= ;
+
+' exit       constant 'exit
+
+0 value doClass         \ cfa for classes, initialized in CLASS.F
+0 value do|Class        \ cfa for invisible classes, initialized in CLASS.F
+
+: _comment      \ char --
+                ?loading @
+                if      begin   source >in @ /string
+                                2 pick scan nip 0=
+                        while   refill 0= abort" EOF encountered in comment"
+                        repeat
+                then    parse 2drop ;
+
+: comment       \ -<char>-
+                char _comment ; immediate
+
+-1 value multi-line?    \ we can have multiple line '(' comments
+
+: (             multi-line?
+                IF      [char] ) _comment
+                ELSE    [char] ) parse 2drop
+                THEN    ; immediate
+
+: $fload        ( a1 -- f1 )    \ a1 = counted file string
+                count included ;  \ f1=false=ok, true=failed
+
+: "fload        ( a1 n1 -- f1 ) \ a1,n1 = file string
+                included ;      \ f1=false=ok, true=failed
+
+: chars         ( n1 -- n2 )    ( 1 * ) ;
+: char+         ( a1 -- a1 )    1 chars + ;
+
+: emit?         ( -- f1 )       \ return true if its ok to emit a character
+                true ;
+
+: synonym       ( -<newname> <oldname>- )
+                create bl word ?uppercase find dup 0= ?missing , ,
+                        immediate
+                does>   2@ ( cfa flag )
+                        state @ = if , else execute then ;
+
+synonym stop/start start/stop
+
+: ekey>char     ( echar -- char true )
+                true ;
+
+defer >bold             ' noop  is >bold
+defer >norm             ' noop  is >norm
+defer do-help           ' noop  is do-help
+defer voc-also          ' noop  is voc-also
+defer "message          ' 2drop is "message
+defer "top-message      ' 2drop is "top-message
+defer message-off       ' noop is message-off
+
+: defer@        ( -<name>- )    \ function currently in defered word name
+                ' >IS
+                state @
+                if      postpone literal postpone @
+                else    @
+                then    ; immediate
+
+: _\n->crlf     ( a1 n1 -- )    \ parse "\n" occurances, change to CRLF's
+                begin   ascii \ scan dup                \ found a '\' char
+                while   over 1+ c@ ascii n =            \ followed by 'n'
+                        if      over 13 swap c!         \ replace with CR
+                                over 10 swap 1+ c!      \ replace with LF
+                        then    1 /string               \ else skip '\' char
+                repeat  2drop   ;
+
+' _\n->crlf is \n->crlf                 \ link into kernel defered word
+
+: -null,        ( -- )
+                5 0                     \ remove previous nulls
+                do      here 1- c@ ?leave
+                        -1 dp +!
+                loop    ;
+
+: +NULL         ( a1 -- )       \ append a NULL just beyond the counted chars
+                count + 0 swap c! ;
+
+: (z")          ( -- )
+                ((")) 1+ ;
+
+: z"            ( -<text">- )
+                ?comp compile (z") ," ; immediate
+
+: z",           ( a1 n1 -- )
+                here over 2dup 2>r allot swap move
+                2r> \n->crlf
+                0 c, align ;            \ terminate with a NULL
+
+: z,"           ( -<text">- ) \ compile text optionally containing "newline"
+                ascii " parse z", ;
+
+: +z,"          ( -<text">- )
+                -null, z," ;
+
+: +z",          ( a1 n1 -- )
+                -null, z", ;
+
+synonym " s"
+
+: not           0= ;
+
+: d0=           or 0= ;
+
+: >=            < 0= ;
+
+: <=            > 0= ;
+
+: get-commandline ( -- )        \ initialize TIB from the commandline
+                0 to source-id
+                cmdline (source) 2!
+                >in off ;
+
+: cfa-func      ( -<name>- )
+                create hide !csp dodoes call, ] ;
+
+defer enter-assembler   ' noop is enter-assembler
+defer exit-assembler    ' noop is exit-assembler
+
+: cfa-code      ( -<name>- )
+                create enter-assembler ;
+
+: cfa-comp,     ( cfa -- )      \ compile or execute a CFA
+                state @ if , else execute then ;
+
+: _COL          ( n -- )
+                _getcolrow drop 1- min _getxy drop - spaces ;
+
+\ define some defered words with their functions, and defaults
+
+defer gotoxy            ' _gotoxy    is gotoxy
+defer getxy             ' _getxy     is getxy
+defer getcolrow         ' _getcolrow is getcolrow
+defer page              ' cls        is page
+defer col               ' _col       is col
+
+\ Some synonyms that improve compatibility with existing F-PC code.
+
+synonym SP>COL COL
+synonym AT-XY gotoxy
+
+: cols          ( -- n1 )               \ current screen columns
+                getcolrow drop ;
+
+: rows          ( -- n1 )               \ current screen rows
+                getcolrow nip ;
+
+: ?exit ( f1 -- )
+        postpone if postpone exit postpone then ; immediate
+
+: HIWORD        ( n1 -- n2 )
+                word-split nip ;
+
+: LOWORD        ( n1 -- n2 )
+                word-split drop ;
+
+: "HOLD         ( adr len -- )
+                dup negate hld +! hld @ swap move ;
+
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\       Words that position on the screen
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
+ 4 value tab-size
+ 4 value left-margin
+ 2 value right-margin
+ 0 value tab-margin
+ 5 value tabs-max
+ 0 value tabing?        \ are we tabing, default to no
+ 0 value first-line?    \ is this the first line of a paragraph
+-8 value indent         \ inden/outdent spaces
+
+: wrap?         ( n1 -- f1 )    \ return true if column n1 crosses into the
+                                \ right margin area
+                getcolrow drop right-margin - > ;
+
+
+: tab-wrap?     ( n1 -- f1 )    \ return true if column exceeds the maximum
+                                \ desired tabs, or crosses into the right
+                                \ margin area
+                dup tabs-max tab-size * >
+                swap wrap? or ;
+
+: TAB           ( -- )
+                getxy drop tab-size / 1+ tab-size * col ;
+
+: #TAB          ( n1 -- )
+                getxy drop over / 1+ * col ;
+
+: 0TAB          ( -- )          \ left margin goes to left edge of screen
+                0 to tab-margin ;
+
+: +TAB          ( --- )
+                tab-size +to tab-margin
+                tab-margin tab-wrap?
+                IF      0tab
+                THEN    ;
+
+: -TAB          ( --- )
+                tab-margin tab-size - 0 MAX DUP to tab-margin
+                tab-size <
+                IF      tabs-max tab-size * to tab-margin
+                THEN    ;
+
+: FIRST-LINE    ( -- )          \ set first line flag
+                true to first-line?
+                0tab ;
+
+: TABING-ON     ( -- )
+                true to tabing? ;
+
+: TABING-OFF    ( -- )
+                false to tabing? ;
+
+synonym tabbing-off tabing-off
+synonym tabbing-on  tabing-on
+
+: CRTAB         ( -- )
+                _cr
+                tabing? 0= ?exit
+                first-line?
+                if      left-margin indent + spaces
+                        false to first-line?
+                else    left-margin spaces
+                        tab-margin spaces
+                then    ;
+
+: ?LINE         ( n1 -- )
+                0 max getxy drop + wrap?
+                if      cr
+                then    ;
+
+warning off
+
+: allot         ( n1 -- )               \ redefine ALLOT with a memory full check
+                dup 1000 + ?memchk allot ;
+
+warning on
+
+260           constant MAX-PATH         \ maximum lengto of a filename buffer
+
+create &prognam max-path allot          \ define the buffer that holds the program name
+       &prognam off
+
+: "to-pathend"  ( a1 n1 --- a2 n2 )     \ return a2 and count=n1 of filename
+                over c@ [char] : =
+                if      3 /string
+                then
+                begin   2dup [char] . scan ?dup
+                while   2swap 2drop 1 /string
+                repeat  drop ;
+
+synonym "file-only" "to-pathend"
+
+: "path-only"   ( a1 n1 -- a2 n2 )
+                2dup "to-pathend" nip - 2dup + 1- c@ [char] . =
+                if      1- 0max
+                then    ;
+
+: ?-.           ( a1 -- )       \ delete trailing '.' if present
+                dup count ?dup
+                if + 1- c@ [char] . =   \ end in '.'?
+                  if      -1 swap c+!   \ if not, append .
+                  else    drop          \ else discard a1
+                  then
+                else 2drop then   ;
+
+: ?+.           ( a1 -- )       \ append a '.' if not already present
+                dup count ?dup
+                if + 1- c@ [char] . <>   \ end in '.'?
+                  if      s" ." rot +place        \ if not, append .
+                  else    drop                    \ else discard a1
+                  then
+                else 2drop then    ;
+
+: ?+,           ( a1 -- )       \ append a ',' if not already present
+                dup count ?dup
+                if + 1- c@ [char] , <>   \ end in ','?
+                  if      s" ," rot +place        \ if not, append ,
+                  else    drop                    \ else discard a1
+                  then
+                else 2drop then   ;
+
+: ?+:           ( a1 -- )       \ append a [char] : if not already present
+                dup count + 1- c@ [char] : <>   \ end in ':'?
+                if      s" :" rot +place        \ if not, append ;
+                else    drop                    \ else discard a1
+                then    ;
+
+\ A word to look through all vocabularies for a matching word to string a1
+
+0 value ?name-max
+0 value ?name-val
+
+: ?name         ( a1 -- cfa )   \ return cfa of nearest definition below a1
+    to ?name-val
+    0 to ?name-max
+    voc-link
+    begin   @ ?dup
+    while   dup vlink>voc
+      dup voc#threads 0
+      do      dup i cells+
+        begin   @ ?dup
+        while   dup ?name-val <
+          if      dup l>name name>
+            ?name-max max to ?name-max
+          then
+        repeat
+      loop    drop
+    repeat  ?name-max ;
+
+: EXEC:         ( n1 -- )       \ execute the n1 item following
+                CELLS R> + @ EXECUTE ;
+
+: 3DUP          ( n1 n2 n3 -- n1 n2 n3 n1 n2 n3 )
+                >r 2dup r@ -rot r> ;
+
+: 4DUP          ( a b c d -- a b c d a b c d )
+\ Duplicate top 4 single numbers (or two double numbers) on the stack.
+                2OVER 2OVER   ;
+
+: D<            ( d1 d2 -- f )
+\ Signed compare two double numbers.  If d1 < d2, return TRUE.
+                2 PICK OVER =
+                IF      DU<
+                ELSE  NIP ROT DROP <  THEN  ;
+
+: D>            ( d1 d2 -- f )
+\ Signed compare two double numbers.  If d1 > d2 , return TRUE.
+                2SWAP D<   ;
+
+: D0<           ( d1 -- f1 )
+                0. D< ;
+
+: DMIN          ( d1 d2 -- d3 )
+\  Replace the top two double numbers with the smaller of the two (signed).
+                4DUP D> IF  2SWAP  THEN 2DROP ;
+
+: DMAX          ( d1 d2 -- d3 )
+\  Replace the top two double numbers with the larger of the two (signed).
+                4DUP D< IF  2SWAP  THEN  2DROP ;        \ 05/25/90 tjz
+
+: ROLL          ( n1 n2 .. nk k -- n2 n3 .. nk n1 )
+\  Rotate k values on the stack, bringing the deepest to the top.
+                >R R@ PICK SP@ DUP cell + R> 1+ cell * MOVE DROP  ;
+
+: 3DROP         ( n1 n2 n3 -- )
+                drop 2drop ;
+
+: 4DROP         ( n1 n2 n3 n4 -- )
+                2drop 2drop ;
+
+: D>S           ( d1 -- n1 )
+                drop ;
+
+: CS-PICK       ( dest .. u -- dest )   \ pick both addr and ?pairs value
+                2 * 1+ dup>r pick r> pick ;
+
+: CS-ROLL       ( dest -- u -- .. dest ) \ roll both addr and ?pairs value
+                2 * 1+ dup>r roll r> roll ;
+
+0 value olddepth
+
+: nostack1      ( -- )
+                depth to olddepth ;
+
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\ MSTARSL.F     ANSI extended precision math by Robert Smith
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
+: TNEGATE   ( t1lo t1mid t1hi -- t2lo t2mid t2hi )
+        invert >r
+        invert >r
+        invert 0 -1. d+ s>d r> 0 d+
+        r> + ;
+
+: UT*   ( ulo uhi u -- utlo utmid uthi )
+        swap >r dup>r
+        um* 0 r> r> um* d+ ;
+
+: MT*   ( lo hi n -- tlo tmid thi )
+        dup 0<
+        IF      abs over 0<
+                IF      >r dabs r> ut*
+                ELSE    ut* tnegate
+                THEN
+        ELSE    over 0<
+                IF      >r dabs r> ut* tnegate
+                ELSE    ut*
+                THEN
+        THEN ;
+
+: UT/   ( utlo utmid uthi n -- d1 )
+        dup>r um/mod -rot r> um/mod
+        nip swap ;
+
+: M*/  ( d1 n1 +n2 -- d2 )
+        >r mt* dup 0<
+        IF      tnegate r> ut/ dnegate
+        ELSE    r> ut/
+        THEN ;
+
+: M+    ( d1 n -- d2 )
+        s>d d+ ;
+
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
+: FIELD+        ( n1 n2 -<name>- n1+n2 )        \ definer for fields
+                create  over , +
+                does>   @ + ;
+
+: \-            ( -<word>- )            \ load line if word IS NOT defined
+                defined nip
+                if      [compile] \
+                then    ; immediate
+
+: \+            ( -<word>- )            \ load line if word IS defined
+                defined nip 0=
+                if      [compile] \
+                then    ; immediate
+
+: RESERVE       ( n1 -- )               \ allot some bytes initialized to NULL
+                here over erase allot ;
+
+: C+PLACE       ( c1 a1 -- )    \ append char c1 to the counted string at a1
+                >r sp@ 1 r> +place drop ;
+
+\ ,"TEXT" also detect \T embeded in the text and replaces it with a TAB char
+
+: ,"TEXT"       ( -<"text">- )  \ parse out quote delimited text and compile
+                                \ it at here  NO EXTRA SPACES ARE NEEDED !!!
+                source >in @ /string
+                [char] " scan 1 /string                 \ skip past first quote
+                2dup [char] " scan                      \ upto next quote
+                2dup 2>r nip -                          \ parse out the string
+                255 min dup>r
+                2dup [char] \ scan 2dup 2>r nip -       \ leading part of string
+                here place                              \ save in BNAME
+                2r> dup
+                if      over 1+ c@ upc [char] T =
+                        if      9         here c+place
+                                2 /string here  +place
+                                r> 1- >r
+                        else    here +place
+                        then
+                else    2drop
+                then
+                r> 1+ allot
+                0 c, align                           \ null terminate name
+                source nip 2r> 1 /string nip - >in !    \ adjust >IN
+                ;
+
+: CONVERT       ( ud1 a1 -- ud2 a2 )
+                1+ 64 >number drop ;
+
+VARIABLE SPAN
+
+: EXPECT        ( a1 n1 -- )            \ accept the text
+                accept span ! ;
+
+: UNUSED        ( -- n1 )               \ return unused HERE in BYTES
+                sp@ here - ;
+
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\      2Value words
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
+: 2+!           ( d1 a1 -- )            \ double accumulate
+                dup>r 2@ d+ r> 2! ;
+
+\ cfa-func do2value              @ 2@  ;    \ in the kernel
+  cfa-func do2value!   2 cells - @ 2!  ;
+  cfa-func do2value+!  3 cells - @ 2+! ;
+
+: 2value        ( d1 -<name>- )
+                header  do2value call, here 3 cells+ , do2value! call, do2value+! call, , , ;
+
+synonym 2to   to
+synonym 2+to +to
+
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\      Command line argument words
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
+0 0 2value arg"
+0 0 2value arg-pos"
+
+
+: "arg-next"    ( a1 n1 -- a2 n2 )
+                bl skip 2dup bl scan nip -
+                2dup bl scan 2dup 2>r nip - 2dup 2to arg"
+                2r> 2to arg-pos" ;
+
+: arg-1"        ( -- a1 n1 )
+                cmdline upper
+                cmdline "arg-next" ;
+
+: arg-next"     ( -- a1 n1 )
+                arg-pos" "arg-next" ;
+
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\       various number display words
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
+: (.)           ( n1 -- a1 n1 ) \ convert number n1 to an ascii string
+                0 (d.) ;
+
+: h.r           ( n1 n2 -- )    \ display n1 as a hex number right
+                                \ justified in a field of n2 characters
+                base @ >r hex >r
+                0 <# #s #> r> over - spaces type
+                r> base ! ;
+
+: h.n           ( n1 n2 -- )    \ display n1 a s a hex number of n2 digits
+                base @ >r hex >r
+                0 <# r> 0 ?do # loop #> type
+                r> base ! ;
+
+: h.2           ( n1 -- ) 2 h.n ;       \ two digit HEX number
+: h.4           ( n1 -- ) 4 h.n ;       \ four digit HEX number
+: h.8           ( n1 -- ) 8 h.n ;       \ eight digit HEX number
+
+: .name         ( cfa -- )
+                dup>r >name 32768 max         \ don't let it wrap below 0
+                true over nfa-count dup ?line
+                bounds
+                do      i c@ 32 <             \ validate the name chars
+                        i c@ 127 > or
+                        if      0= leave
+                        then
+                loop
+                if      .id
+                else    drop r@ 1 h.r ." h "
+                then    r>drop ;
+
+: ?.name        ( cfa -- )      \ try to display the name at CFA
+                dup ?name ?dup
+                if      .name
+                else    ." ???: " dup 1 h.r ." h "
+                then    drop ;
+
+\ BINARY double number display with commas
+
+: (BUD,.)       ( ud -- a1 n1 )
+                base @ >r binary
+                <#              \ every 4 digits from right
+                4 0 DO # 2DUP D0= ?LEAVE LOOP
+                begin   2DUP D0= 0=     \ while not a double zero
+                while   [char] , HOLD
+                        4 0 DO # 2DUP D0= ?LEAVE LOOP
+                repeat  #>
+                r> base ! ;
+
+
+: BUD,.R        ( ud l -- )             \ right justified, with ','
+                >R (BUD,.) R> OVER - SPACES TYPE ;
+
+: BU,.R         ( n1 n2 -- )
+                0 SWAP BUD,.R ;
+
+: b.            ( n1 -- ) 1 bu,.r ;
+
+
+\ double number display with commas
+
+: (UD,.)        ( ud1 -- a1 n1 )
+                <#              \ every 3 digits from right
+                3 0 DO # 2DUP D0= ?LEAVE LOOP
+                2DUP D0= 0=
+                IF      [char] , HOLD
+                        3 0 DO # 2DUP D0= ?LEAVE LOOP
+                THEN
+                2DUP D0= 0=
+                IF      [char] , HOLD
+                        3 0 DO # 2DUP D0= ?LEAVE LOOP
+                THEN    #> ;
+
+: UD,.R         ( ud l -- )             \ right justified, with ','
+                >R (UD,.) R> OVER - SPACES TYPE ;
+
+: U,.R          ( n1 n2 -- )
+                0 SWAP UD,.R ;
+
+: (D.#)         ( d1 n1 -- a1 n1 ) \ display d1 with n1 places behind DP
+                >R <#              \ n1=negative will display'.' but no digits
+                R> ?DUP            \ if not zero, then display places
+                IF      0 MAX 0 ?DO # LOOP [char] . HOLD
+                THEN    #S #> ;
+
+: D.R.#         ( d1 n1 n2 -- ) \ print d1 in a field of n1 characters,
+                                \ display with n2 places behind DP
+                SWAP >R (D.#) R> OVER - SPACES TYPE ;
+
+: .R.1          ( n1 n2 -- )     \ print n1 right justified in field of n2
+                0 SWAP 1 D.R.# ; \ display with one place behind DP
+
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\       TRIM (forget) primitives
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
+: (trim)        ( addr1 addr2 -- addr1 addr3 )
+                begin @ 2dup u> until ;
+
+: trim          ( addr voc -- )
+                tuck (trim) nip swap ! ;
+
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\       Execution chain words
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
+variable chain-link             \ linked list of chains
+         chain-link off
+
+: trim-chain    ( a1 chain^ --- )       \ SMuB  End trim
+                begin 2dup @ 1- u>      \ The 1- makes 0 the biggest value
+                while @
+                repeat
+                off drop ;
+
+: trim-chains   ( a1 -- a1 )            \ trim down the chain linked list
+                chain-link
+                begin   @ ?dup
+                while   2dup 2 cells - trim-chain
+                repeat  dup chain-link trim ;
+
+: new-chain     ( -- )
+                create 0 , ['] noop , chain-link link, ;
+
+: .chain        ( chain -- )
+                dup @ 0=
+                if      drop ." Empty"
+                else    begin   @ ?dup
+                        while   dup cell+ @ >name .id 12 ?cr
+                                start/stop
+                        repeat
+                then    ;
+
+: .chains       ( -- )          \ display the contents of all chains
+                chain-link
+                begin   @ ?dup
+                while   dup 2 cells -
+                        dup cr body> >name .id 24 col ."  --> " .chain
+                repeat  ;
+
+: do-chain      ( chain_address -- )
+                begin   @ ?dup
+                while   dup>r           \ make sure stack is clean during
+                        cell+ @
+                        execute \ execution of the chained functions
+                        r>              \ so parameters can be passed through
+                repeat  ;               \ the chain if items being performed
+
+: noop-chain-add ( chain_address -- addr )      \ add chain item, return addr of cfa added
+                begin   dup @
+                while   @
+                repeat  here swap ! 0 , here ['] noop , ;
+
+: chain-add     ( chain_address -<word_to_add>- )       \ for normal forward chains
+                begin   dup @
+                while   @
+                repeat  here swap ! 0 , ' , ;
+
+: chain-add-before ( chain_address -<word_to_add>- )    \ for reverse chains like BYE
+                here over @ , ' , swap ! ;
+
+\ define some of the chains we need
+
+new-chain initialization-chain  \ chain of things to initialize
+new-chain            bye-chain  \ chain of things to de-initialize
+new-chain         forget-chain  \ chain of types of things to forget
+new-chain          mouse-chain  \ chain of things to do on mouse down
+new-chain      semicolon-chain  \ chain of things to do at end of definition
+new-chain       forth-io-chain  \ chain of things to to to restore forth-io
+new-chain        number?-chain  \ chain of number conversion options
+
+: n;            ( -- )
+                ?comp  ?csp  reveal  compile unnest
+                [compile] [
+                semicolon-chain do-chain ; immediate
+
+' n; is ;       \ new version of semicolon that knows about chains
+
+
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\ A super version of number that detect the 0x00 'C' style of hex numbers
+\ as well as ascii characters in the 'A' format.
+\ A HEX number ending in 'L' automatically has the 'L' removed.  This is
+\ done so Forth can accept 0x1234L format numbers as they are encountered
+\ in 'C' header files.
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
+: new-number?   ( a1 n1 f1 -- d1 TRUE | a1 n1 FALSE )
+                dup ?exit drop
+                2dup _number?
+                if      2swap 2drop TRUE
+                else    2drop FALSE
+                then    ;
+
+number?-chain chain-add new-number?             \ first item in NUMBER? chain
+
+: 0xNUMBER?     ( a1 n1 f1 -- d1 TRUE | a1 n1 FALSE )
+                dup ?exit drop                  \ leave if already converted
+                over c@ ascii ' =
+                if      false to double?        \ initially not a double #
+                        3 =
+                        over 2 + c@ ascii ' = and
+                        swap 1+ c@ 0 rot
+                else    base @ >r
+                        over 2 S" 0X" compare 0=        \ if start with 0x
+                        if      hex  2 /string          \ set hex, remove 0x
+                                2dup + 1- c@ ascii L =  \ if have 'L'
+                                if      1- 0 max        \ remove it
+                                then
+                        then
+                        FALSE new-number?
+                        r> base !
+                then    ;
+
+number?-chain chain-add 0xNUMBER?
+
+: &number?      ( a1 n1 f1 -- d1 TRUE | a1 n1 FALSE )
+    dup ?exit drop
+    over c@ dup ascii & = swap ascii % = over or
+    if false to double?
+      base @ >r
+      if hex else binary then
+      1 /string false new-number?
+      r> base !
+    then ;
+
+number?-chain chain-add &NUMBER?
+
+: new-number    ( ^str -- d )           \ an extensible version of NUMBER
+                count FALSE number?-chain do-chain 0= ?missing ;
+
+' new-number is number                  \ replace normal number conversion
+                                        \ with the new chain scheme
+
+
+defer pushkey   ' drop is pushkey
+defer "pushkeys ' 2drop is "pushkeys
+
+0 value tot-malloc
+0 value heapptr
+0 value heapsize
+
+: heapon   ( -- ) 16384
+    0 to tot-malloc
+    heapsize abort" You already have a heap."
+    -1 swap memory-total &8000 - dup>r + Wimp_SlotSize
+    dup r> dup &8000 + to heapptr - to heapsize
+    &8000 + 32772 ! 2drop
+    heapsize 0 heapptr 0 OS_Heap drop 2drop ;
+
+initialization-chain chain-add heapon
+
+: heapoff ( -- )
+    tot-malloc abort" Heap still used"
+    -1 memory-total dup>r heapsize -
+    Wimp_SlotSize dup r> - 0max to heapsize
+    32772 ! 2drop ;
+
+: allocate ( n -- ad ior )
+    dup 0< abort" Allocation Error!"
+    aligned 0 heapptr 2 OS_Heap
+    if 2drop here true
+    else swap cell+ dup 4 and + +to tot-malloc false then ;
+
+: malloc        ( n1 -- a1 )
+    aligned 0 heapptr 2 OS_Heap
+    abort" Failed to allocate memory"
+    swap +to tot-malloc ;
+
+: free ( ad -- ior )
+    0 swap heapptr 6 OS_Heap drop
+    0 swap heapptr 3 OS_Heap nip nip
+    tuck 0= if negate +to tot-malloc else drop then ;
+
+: release       ( a1 -- )
+    free drop ;
+
+: resize        ( a1 n1 -- a2 f1 )      \ ansi version of realloc
+    0 rot heapptr 6 OS_Heap 2drop cell- - dup +to tot-malloc swap
+    heapptr 4 OS_Heap rot drop ;          \ -- f1 = true on error
+
+: realloc       ( size pointer_to_malloc_mem -- pointer_to_new_mem  flag )
+    swap resize ;
+
+: _forth-io     ( -- )                  \ reset to Forth IO words
+                ['] _emit      is emit
+                ['] _type      is type
+                ['] crtab       is cr
+                ['] _?cr        is ?cr
+                ['] _key       is key
+                ['] _key?      is key?
+                ['] _cls        is cls
+                [']  cls        is page
+                ['] _gotoxy     is gotoxy
+                ['] _getxy      is getxy
+                ['] _getcolrow  is getcolrow
+                ['] _col        is col ;
+
+forth-io-chain chain-add _forth-io
+
+: forth-io      ( -- )
+                forth-io-chain do-chain ;
+
+forth-io        \ set the default I/O words
+
+.( ...done )
+

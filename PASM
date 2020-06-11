@@ -1,0 +1,598 @@
+\ ARM-Assembler
+
+cr .( Loading the ARM Assembler...)
+
+\ for usage see end of this file and the file fkernel
+
+8 #vocabulary assembler
+
+defer setassem
+
+only forth also assembler definitions also
+
+variable <CC>         variable <P>          variable <T>
+variable <SH>         variable <^>          variable <#>
+variable <S>          variable <[>          variable <],>
+variable <!>          variable <X>
+variable <OIS>        variable <typ>        variable <#REGS>
+create <REGS> 18 allot
+variable <DOIT1>      variable <DOIT2>
+variable <ADOPCODE1>  variable <ADOPCODE2>
+
+' drop <DOIT1> !  ' drop <DOIT2> !
+
+: <a;>
+    <ADOPCODE1> @  <DOIT1> @ execute
+    <ADOPCODE2> @  <ADOPCODE1> !
+    <DOIT2> @      <DOIT1> !
+    ['] drop <DOIT2> ! ;
+
+: <a;!>  ( a1 a2 -- )
+    <DOIT2> !
+    <ADOPCODE2> ! ;
+
+: reset
+    <#REGS> off  <CC> off  <SH> off  <#> off  <],> off
+    <REGS> 12 erase
+    <S> off  <T> off  <P> off <[> off  <!> off  <X> off
+    <^> off  <OIS> off  <typ> off ;
+
+variable postvar                        \ is this post fix notation?
+
+forth definitions
+
+defer a;!       ' <a;!>    is a;!
+defer a;        ' <a;>     is a;
+
+: prefix        ( --- )
+                ['] <a;!>    is a;!
+                ['] <a;>     is a;
+                postvar off ;
+: postfix       ( --- )
+                ['] execute  is a;!
+                ['] noop     is a;
+                postvar on ;
+
+prefix          \ default is prefix assembler.
+
+: >pre          2r> postvar @ >r 2>r prefix ;    \ save and set prefix
+: pre>          2r> r> if postfix then 2>r ;     \ restore previous fix
+
+assembler definitions
+
+defer c,        forth ' c,      assembler is c,
+defer ,         forth ' ,       assembler is ,
+defer here      forth ' here    assembler is here
+defer t,        forth ' ,       assembler is t,
+defer t@        forth ' @       assembler is t@
+defer t!        forth ' !       assembler is t!
+
+defer ?>mark            defer ?>resolve
+defer ?<mark            defer ?<resolve
+
+: br>ad  ( here op -- ad )  
+    8 lshift dup 0< if 6 rshift &fc000000 or else 6 rshift then + 8 + ;
+
+: ad>of  ( to from -- of )
+    8 + - 2 rshift &ffffff and ;
+
+&c0 value max-llabs
+ 12 value b/llab
+false value ll-global?     \ are local labels available globally?
+
+create %llab[] max-llabs b/llab * allot
+
+%llab[] value llab[]            \ default to %llab[] array
+
+false value ll-used?
+
+: llab-init  ( -- )     \ initializes local labels
+  llab[]  max-llabs b/llab * erase
+  false is ll-used? ;
+
+: llab>line  ( n -- ^line )
+  dup max-llabs 1- u> abort" Bad Label"
+  b/llab * llab[] + ;
+
+: $  ( n1 -- n2 )
+  true is ll-used?          \ set "labels used?" flag
+  llab>line 1 over 8 + c!   \ set "ever referenced?" flag
+  dup @ IF      \ if the label is already defined:
+    @           \   then return it for resolution
+  ELSE          \ otherwise:
+    cell+       \   move to head of list pointer
+    dup @ >r    \   save old head of list on rstack
+    here swap ! \   set new head of list
+    r>          \   retrieve old head of list
+    dup 0= IF   \   if list is empty:
+      here +    \     pass current dictionary location
+    THEN        \   end-if
+  THEN ;        \ end-if
+
+: >res  ( ^line -- )
+  cell+ @ dup 0= IF \ if nothing to resolve
+    drop exit       \   then exit
+  THEN
+  BEGIN             \ stack contains directory address of 
+                    \   displacement to be resolved
+    dup t@ >r 
+    here over ad>of
+    r@ &ff000000 and or
+    over t!
+    r> &ff000000 or dup -2 <>
+  WHILE
+    br>ad
+  REPEAT 2drop ;
+
+: $:f  ( n -- )     \ defines a local label
+  true to ll-used?  \ set "labels used?" flag
+  llab>line
+  dup @ 0<> abort" Label can't be multiply defined"
+  dup >res          \ resolve forward references if needed
+  here swap ! ;     \ and set label for subsequent refs
+
+: $:  ( n -- )      \ allow use as prefix/postfix
+  ['] $:f a;! a; ;
+
+: _ll-errs?  ( -- )  \ final error checking for local labels
+  false max-llabs 0 DO  \ check each label
+    i b/llab * llab[] +
+    dup 8 + c@ 0<> IF   \ if jumps to label
+      @ 0= IF           \   and no label to jump to
+        cr ." jump(s) to label " i .
+          ." and label not defined"
+        drop true       \ set error flag
+      THEN
+    ELSE                \ if no jumps to label
+      @ 0<> IF          \   and label defined
+        cr ." warning - label " i .
+           ." defined, but no jumps to it"
+      THEN
+    THEN
+  LOOP
+  IF abort THEN ;       \ abort if fatal error
+
+: ll-errs?  ( -- )      \ final error checking for local labels
+  ll-used? IF _ll-errs? THEN ;
+
+: L$            ( --- a1 )              \ Pass a1 to L$:
+                0 A; HERE ;
+
+: L$:           ( a1 --- )              \ a1 = addr passed by L$
+                A; HERE OVER 8 + - over t@ &ff000000 and or swap T! ;
+
+FORTH DEFINITIONS
+
+: DOASSEM       ( --- ) 
+                0 ['] DROP A;!
+                <ADOPCODE2> @ <ADOPCODE1> !
+                <DOIT2> @ <DOIT1> !
+                reset
+                ll-global? 0=
+                if      llab-init               \ in case labels used
+                then
+                ALSO assembler ;
+
+' DOASSEM IS SETASSEM
+
+synonym CLEAR_LABELS LLAB-INIT
+
+: LOCAL_REF     ( --- )
+                0 is LL-GLOBAL? ;       LOCAL_REF
+                                        \ default to LOCAL references only
+
+: GLOBAL_REF    ( --- )
+                -1 is LL-GLOBAL? ;
+
+: LABEL         ( NAME --- )            \ Really just a constant addr
+                SETASSEM CREATE ; 
+
+: CODE          ( NAME --- )
+                LABEL -4 DP +! HIDE ;
+
+assembler DEFINITIONS
+
+: END-CODE
+                ll-global? 0=
+                if      ll-errs?        \ check for local label errors
+                then
+                PREVIOUS A; REVEAL
+                 ;
+
+synonym C; END-CODE
+
+: Rn &10 or <#REGS> @ <REGS> + c! 1 <#REGS> +! ;
+: reg
+    create c,
+    does> c@ Rn ;
+
+ 0 reg R0             1 reg R1          2 reg R2          3 reg R3
+ 4 reg R4             5 reg R5          6 reg R6          7 reg R7
+ 8 reg R8             9 reg R9         10 reg R10        11 reg R11
+12 reg R12           13 reg R13        14 reg R14        15 reg R15
+synonym R0,  R0     synonym R1,  R1    synonym R2,  R2   synonym R3,   R3  
+synonym R4,  R4     synonym R5,  R5    synonym R6,  R6   synonym R7,   R7  
+synonym R8,  R8     synonym R9,  R9    synonym R10, R10  synonym R11,  R11 
+synonym R12, R12    synonym R13, R13   synonym R14, R14  synonym R15,  R15 
+synonym PC   R15    synonym PC,  R15   synonym LINK R14  synonym LINK, R14 
+synonym SP   R13    synonym SP,  R13   synonym RP   R12  synonym RP,   R12 
+synonym IP   R11    synonym IP,  R11   synonym TOS  R10  synonym TOS,  R10 
+synonym OP   R9     synonym OP,  R9  
+synonym Rn,  Rn
+
+: ccode
+    create ,
+    does> @ <CC> ! ;
+
+        1 ccode EQ &10000000 ccode NE &20000000 ccode CS &30000000 ccode CC
+&40000000 ccode MI &50000000 ccode PL &60000000 ccode VS &70000000 ccode VC
+&80000000 ccode HI &90000000 ccode LS &a0000000 ccode GE &b0000000 ccode LT
+&c0000000 ccode GT &d0000000 ccode LE &e0000000 ccode AL &f0000000 ccode NV
+
+: scode
+    create ,
+    does> @ <SH> ! ;
+
+ &01 scode ASL     &41 scode ASR     &21 scode LSR     &61 scode ROR
+&160 scode RRX   synonym LSL ASL
+
+synonym o[ [    synonym o] ]
+: S &100000 <S> ! ;
+: P   &f000 <P> ! ;
+: T &200000 <T> ! ;
+: X  &20000 <X> ! ;
+: ^ &400000 <^> ! ;
+: [ <[> on ;
+: ], <#> @ 0= <#REGS> @ 2 = and if <],> on then ;
+: ] noop ; immediate
+: !, &200000 <!> ! ;
+synonym ]! !,
+: # <#> on ;
+: { noop ; immediate
+: } noop ; immediate
+
+: <assabort> ." Assembler-Fehler " . abort ;
+\ 0=immediate or register expected
+\ 1=falscher Shift
+\ 2=register expected
+\ 3=immediate shifted
+\ 4=bad immediate
+\ 5=do not multiply to PC
+\ 6=Registerfehler bei MUL
+: assabort ( f code -- ) \ flag=0, dann Abbruch
+    swap 0= if <assabort> then drop ;
+
+: align begin here 3 and while 0 c, repeat ;
+
+: lastreg ( -- reg )
+    -1 <#REGS> +!
+    <#REGS> @  dup 0>= 2 assabort
+    <REGS> + c@ &f and ;
+
+: shift> ( opcode -- opcode' )
+    <SH> @ ?dup
+    if dup &160 <>
+      if &f0 and or
+        <#> @
+        if swap dup 0> over 33 < and 1 assabort
+          &1f and 7 lshift or 
+        else <OIS> @ 0= 1 assabort
+          lastreg 4 lshift 1+ 4 lshift or
+        then
+      else &ff and or
+      then
+    then ;
+
+: cc> ( opcode -- opcode')
+    <CC> @ ?dup
+    if >r &0fffffff and r> &f0000000 and or
+    then ;
+
+: rel#> ( opcode d -- opcode' )
+    dup 0<
+    if negate swap &ff7fffff and swap then
+    dup 4096 < 4 assabort
+    or ;
+
+: rotl
+   0 do dup 31 rshift swap 1 lshift or loop ; 
+
+: valid? ( imm -- imm' )
+   false swap 16 0 
+   do dup &ffffff00 and 0= 
+     if nip i true rot leave 
+     then  2 rotl 
+   loop swap 4 assabort
+   &20000 rot or 8 lshift or ; 
+
+create adop
+  &e3a00000 , &e3800000 , \ mov rh, # x     \ orr rd, rh, # x
+  &e3e00000 , &e3c00000 , \ mvn rh, # x     \ bic rd, rh, # x
+  &e28f0000 , &e2800000 , \ add rh, pc, # x \ add rd, rh, # x
+  &e24f0000 , &e2400000 , \ sub rh, pc, # x \ sub rd, rh, # x
+0 value adind
+0 value adcc   0 value adnr
+
+variable adregf    0 value adreg
+
+: in1 ( nr bof -- nr false | true )
+    adcc <cc> !
+    false rot 16 0
+    do dup &ffffff00 and 0=
+      if nip swap i + 15 and 8 lshift or
+        adop adind + @ or adreg c@ 12 lshift or cc> , true dup leave
+      then 2 rotl
+    loop over if drop reset else rot drop swap then ;
+
+: in2 ( nr bof -- nr false | true )
+    false rot 16 0
+    do dup &ffffff00 and i in1  adcc <cc> !
+      if nip &ff and
+        swap i + 15 and 8 lshift or
+        adop adind + cell+ @ or adreg 1+ c@ 12 lshift or adreg c@ 16 lshift or
+        cc> , true dup leave
+      then drop 2 rotl
+    loop over if drop reset else rot drop swap then ;
+
+comment ö
+: in3 ( nr bof -- nr false | true )
+    false rot 16 0
+    do dup &ffffff00 and i in2
+      if nip &ff and
+        swap i + 15 and 8 lshift or 
+        adop adind + cell+ @ or adreg 2+ c@ 12 lshift or adreg 1+ c@ 16 lshift or
+        , true dup leave
+      then drop 2 rotl
+    loop over if drop reset else rot drop swap then ;
+
+: in4 ( nr bof -- true )
+
+;
+ö
+
+
+: (adr)  ( nr 0 -- )
+   align
+   drop <cc> @ to adcc
+   to adnr
+   lastreg
+   <#REGS> @ 1 =
+   if &10101 * lastreg 24 lshift or else &1010101 * then adregf !
+   adregf 3 + to adreg
+    0 to adind  adnr            0 in1  ?exit
+    8 to adind       negate 1-  0 in1  ?exit drop
+   16 to adind  adnr here 8 + - 0 in1  ?exit
+   24 to adind       negate     0 in1  ?exit drop
+   adregf 2 +  to adreg
+    0 to adind  adnr            0 in2  ?exit
+    8 to adind       negate 1-  0 in2  ?exit drop
+   16 to adind  adnr here 8 + - 0 in2  ?exit
+   24 to adind       negate     0 in2  ?exit drop
+   true abort" HMPH" ; 
+
+: 1m ( ad -- ) 
+    align
+    @ dup &f and dup <typ> ! 2 =
+    if &100000 or <P> @ or then
+    &fffffff0 and
+    <S> @ or
+    cc>
+    <OIS> off  shift> 
+    <#REGS> @ 2 <typ> @ 0= - >=    \ ? Register als letzter Operand
+    if lastreg or
+    else <SH> @ 0= 3 assabort
+      <#> @ 0 assabort swap valid? or
+    then
+    <typ> @ 0=
+    if lastreg 16 lshift or
+    then
+    lastreg <typ> @ 2 =
+    if 16 lshift
+    else 12 lshift
+    then or
+    , reset ;
+
+: 1mi
+    create ,
+    does> ['] 1m a;! a; ;
+
+: 2m
+    align
+    @
+    <S> @ or
+    cc>
+    dup &200000 and
+    if lastreg 12 lshift or then
+    lastreg 8 lshift or
+    lastreg dup >r or
+    lastreg dup 15 <> 5 assabort
+    dup r> <> 6 assabort
+    16 lshift or
+    , reset ;
+
+: 2mi
+    align
+    create ,
+    does> ['] 2m a;! a; ;
+
+: 3m
+    align
+    @
+    cc>
+    swap here ad>of or
+    , reset ;
+
+: 3mi
+    create ,
+    does> ['] 3m a;! a; ;
+
+: 4m
+    align
+    @
+    cc>
+    <#REGS> @ 1- 0 do
+      lastreg dup 15 =
+      if swap <^> @ or swap then
+      1 swap lshift or
+    loop
+    lastreg 16 lshift or
+    <!> @ or
+    , reset ;
+
+: 4mi
+    create ,
+    does> ['] 4m a;! a; ;
+
+: 5m
+    align
+    @
+    cc>
+    <REGS> c@ &f and 12 lshift or
+    <[> @
+    if <REGS> 1+ c@ &f and 16 lshift or
+      <OIS> on
+      <],> @
+      if <T> @ or &feffffff and
+      else <!> @ or
+      then
+      <#REGS> @ 2 >
+      if &2000000 or
+        <REGS> 2 + c@ &f and or
+        shift>
+      else <#> @
+        if swap rel#>
+        then
+      then
+    else <!> @ 0<>  <SH> @ 0<> or 0= 7 assabort
+      &10f0000 or
+      swap here 8 + -
+      dup 0< if negate swap &ff7fffff and swap then
+      dup &1000 < 4 assabort
+      or 
+    then
+    , reset ;
+
+: 5mi
+    create ,
+    does> ['] 5m a;! a; ;
+
+code 6m1
+  &e1a0100a , \ mov r1, tos
+  &ef000039 , \ swi " OS_NameToNumber"
+  &e1a0a000 , \ mov tos, r0
+  &e49bf004 , \ ldr pc, [ ip ], # 4
+c;
+
+: "f>c ( ad len -- ad' )
+    >r pad r@ cmove 0 pad r> + c! pad ;
+
+: 6m
+    align
+    @ 
+    cc>
+    <X> @ or
+    dup 1 and swap &fffffffe and swap 
+    if swap 
+    else -rot "f>c 6m1
+    then
+    &ffffff and or , reset ;
+
+: 6mi
+    create ,
+    does> ['] 6m a;! a; ;
+
+&e0000000 1mi AND            &e0200000 1mi EOR
+&e0400000 1mi SUB            &e0600000 1mi RSB
+&e0800000 1mi ADD            &e0a00000 1mi ADC
+&e0c00000 1mi SBC            &e0e00000 1mi RSC
+&e1100002 1mi TST            &e1300002 1mi TEQ
+&e1500002 1mi CMP            &e1700002 1mi CMN
+&e1800000 1mi ORR            &e1a00001 1mi MOV
+&e1C00000 1mi BIC            &e1e00001 1mi MVN
+&e0000090 2mi MUL            &e0200090 2mi MLA
+&eb000000 3mi BL             &ea000000 3mi B
+&e9000000 4mi STMFD          &e8900000 4mi LDMFD
+&e9800000 4mi STMFA          &e8100000 4mi LDMFA
+&e8000000 4mi STMED          &e9900000 4mi LDMED
+&e8800000 4mi STMEA          &e9100000 4mi LDMEA
+&e5900000 5mi LDR            &e5d00000 5mi LDRB
+&e5800000 5mi STR            &e5c00000 5mi STRB
+&ef000000 6mi SWI            &ef000001 6mi SWI#
+: adr 0 ['] (adr) a;! a; ;
+
+: ?condition
+    not abort" Conditionals Wrong!" ;
+
+: A?>MARK    ( n -- f addr ) true here rot t, ;
+: A?>RESOLVE ( f addr -- )   HERE OVER ad>of over t@ or SWAP T! ?CONDITION ;
+: A?<MARK    ( -- f addr )   TRUE   HERE   ;
+: A?<RESOLVE ( f addr n -- ) swap HERE ad>of or t, ?CONDITION ;
+
+' A?>MARK    assembler IS ?>MARK
+' A?>RESOLVE assembler IS ?>RESOLVE
+' A?<MARK    assembler IS ?<MARK
+' A?<RESOLVE assembler IS ?<RESOLVE
+
+&1a000000 CONSTANT 0=   &0a000000 CONSTANT 0<>   &5a000000 CONSTANT 0<
+&4a000000 CONSTANT 0>=  &aa000000 CONSTANT <     &ba000000 CONSTANT >=
+&ca000000 CONSTANT <=   &da000000 CONSTANT >     &2a000000 CONSTANT U<
+&3a000000 CONSTANT U>=  &8a000000 CONSTANT U<=   &9a000000 CONSTANT U>
+&6a000000 CONSTANT OV<> &7a000000 CONSTANT OV
+
+: BEGIN ( - f a )           A; ?<MARK ;
+: UNTIL ( f a n - )         >R A; R> ?<RESOLVE A; ;  
+: AGAIN ( f a - )           &ea000000 UNTIL ;
+: IF ( n - f A )            >R A; R> ?>MARK A; ;        
+: THEN ( f A - )            A; ?>RESOLVE ;
+: ELSE ( f A - f A )        &ea000000 IF 2SWAP THEN ;
+: REPEAT ( f A f a - )      A; AGAIN THEN ;
+: WHILE ( f a n - f A f a ) IF 2SWAP ;
+
+: next
+    >pre ldr pc, [ ip ], # 4
+    pre> ;
+
+FORTH DEFINITIONS
+
+: INLINE        [COMPILE] [ SETASSEM HERE cell+ , ; IMMEDIATE
+
+assembler DEFINITIONS
+
+: END-INLINE    o[ assembler o]
+  >pre
+    add ip, pc, # 0
+    ldr pc, [ ip ], # 4
+  pre>
+  END-CODE o] ;
+
+\ behead
+
+ONLY FORTH DEFINITIONS ALSO
+
+DECIMAL
+
+\s
+\  And here is how to use the Assembler words:
+
+code nn
+  adr r2, ' interpret 3 +
+  adr r1, ' inline
+  mov tos, # 5
+  adc pl r0, r1, r2
+  sbc eq r0, r1, r2 lsl # 5
+  rsb al r0, r1, r2 ror r3
+  add nv r0, r1, # &e700000
+  ldr r0, [ r1 ], r2
+  str r0, [ rp ], # 1024
+  ldrb r0, [ r1, # 10 ]
+  strb r0, [ r1, r2, asr # 7 ]!
+  ldr r0, [ r1 ], r2 asl # 21 T
+  str r0, [ r1 ]
+  stmfd sp !, { tos, r5, r3, r13, link, pc }
+  0= if
+    swi " OS_WriteC"
+  else
+    swi " OS_Write0"
+  then
+  bl &13004
+next c;

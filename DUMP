@@ -1,0 +1,18 @@
+\ $Id: dump.f 1.1 1994/04/01 07:52:55 andrew Exp $
+
+cr .( Loading the Memory Dump words..)
+
+: EMIT.         ( n -- )
+                DUP BL 127 WITHIN 0= IF  DROP [CHAR] .  THEN  EMIT ;
+
+: DUMP          ( adr len -- )  ( hex byte format with ascii )
+                OVER + DUP ROT
+                ?DO     CR I 4 U.R SPACE SPACE   I 16 + OVER MIN I
+                        2dup
+                        DO      I C@ h.2 space I J 7 + = IF SPACE THEN
+                        LOOP    2DUP -  16 OVER - 3 *  SWAP 8 < -  1+ SPACES
+                        DO      I C@ EMIT.
+                        LOOP    START/STOP
+            16 +LOOP    DROP    ;
+
+

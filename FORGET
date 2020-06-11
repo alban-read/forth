@@ -1,0 +1,59 @@
+\ $Id: forget.f 1.1 1994/04/01 07:53:05 andrew Exp $
+
+cr .( Loading the Forget wordset...)
+
+\   provides FORGET name
+\            MARK name
+\            MARKER
+
+variable fence  \ cannot forget below this address
+
+: trim-loadfile ( a1 -- a1 )
+                dup loadfile trim ;
+
+forget-chain chain-add trim-loadfile
+
+: trim-defer    ( a1 -- a1 )    \ trim the defered word list to address a1
+                dup defer-list trim
+                defer-list
+                begin   @ ?dup
+                while   2dup cell - @ u<        \ if forward above, then
+                        if      dup  cell+  @
+                                over cell - !   \ set default defer
+                        then
+                repeat  ;
+
+forget-chain chain-add trim-defer
+
+: vtrim         ( a1 voc-thread -- )    \ trim VOC-THREAD back to a1
+                dup voc#threads 0
+                do      2dup i cells + trim
+                loop    2drop ;
+
+: (forget)      ( address-of-first-name-character -- )
+                dup fence @ u< abort" in protected dictionary"
+                voc-link (trim)  dup voc-link !
+                begin   ?dup
+                while   2dup vlink>voc vtrim
+                        @
+                repeat
+                forget-chain do-chain   \ execute the forget chain
+                trim-chains             \ must be done after the chain
+                                        \ finishes executing
+                dp !                    \ finally set DP to the resulting addr
+                voc-also ;              \ reset look aside table if present
+
+: forget        ( -<name>- )
+                bl word ?uppercase count
+                current @ search-wordlist 0= ?missing ( cfa )
+                >name nfa-count drop (forget) synccode ;
+
+: mark          ( -<name>- )
+                create does> (forget) forth definitions ;
+
+: marker        ( -- )  ( ANS)
+                here create ,
+                does> @ (forget)  forth definitions ;
+
+here fence !
+

@@ -1,0 +1,561 @@
+\ $Id: debug.f 1.1 1994/04/01 07:52:43 andrew Exp $
+
+cr .( Loading the Debugger...)
+
+\ use: &8000 128 dbg dump
+\  or: debug ?line       see interpret
+
+32 value max.rstack
+
+only forth also definitions also hidden
+
+: key-breaker   ( -- )
+                noop ;
+
+: breaker       ( -- )
+                noop ;
+
+: L.ID  ( nfa len -- )  swap dup .id  c@ 31 and 1+ - spaces  ;
+
+new-chain dbg-next-cell
+new-chain dbg-nest-chain        ( cfa flag -- cfa false | true )
+new-chain .word-type-chain
+
+vocabulary bug          also bug also definitions
+
+\ Numeric printing words that do NOT use PAD !!!
+
+: CHR>ASC   ( n -- char )
+        dup 9 > 7 and + 48 + ;
+
+: &   ( n1 -- char n2 )
+        0 base @ um/mod swap chr>asc swap ;
+
+: &S   ( n1 -- c1 c2 ... 0 )
+    BEGIN
+        & dup 0=
+        UNTIL ;
+        
+: <&   ( n -- 0 n )
+        0 swap ;
+        
+: &>  drop ;
+
+: &TYPE   ( 0 c1 c2 ... -- )
+        BEGIN ?dup
+    WHILE emit
+    REPEAT ;
+
+\ externally usable number display words that don't use PAD
+
+: U%.   ( u -- )
+        <& &s &> &type space ;
+        
+: %.    ( n -- )
+        dup 0<
+        IF      abs ascii - emit
+        THEN u%. ;
+
+: 0%.R  ( n -- )        \ display signed right justified except in HEX,
+                        \ then display unsigned
+        base @  0x10 <>
+        if      dup 0<
+                IF      abs ascii - emit
+                THEN
+        then    <& &s &> &type ;
+
+: H%.   ( n -- )
+        base @ swap hex u%. base ! ;
+        
+: %.S   ( ... -- ... )
+        ?stack depth .smax @ min dup
+        IF      ." [" depth 1- 0%.r ." ] "
+        BEGIN
+                dup pick 0%.r
+            base @ 0x10 =
+            IF  ." h" THEN
+            space
+            1- dup 0=
+                UNTIL
+        ELSE    ."  empty "
+        THEN
+        drop ;
+        
+\ -------------------- Variables --------------------
+
+variable ip  0 ,        \ ip & contents of current breakpoint
+variable ip0            \ ip at start of word
+variable rtop           \ top of return stack
+variable nesting        \ nesting level
+
+0 value ?dbg-cont       \ are we stepping contiuously
+
+: patch  ( cfa -- )
+        ip @ @ ip cell+ !       \ save old word
+        ip @ ! ;                \ patch in trace word
+
+
+\ -------------------- Advance IP --------------------
+
+: colon?        ( cfa -- f ) call@ ['] patch call@ = ;
+
+: variable?     ( cfa -- f ) call@ ['] ip    call@ = ;
+
+\ : code?         ( cfa -- f ) dup @ swap cell+ = ;
+
+: defer?        ( cfa -- f ) @ ['] key   @ = ;
+
+: execute?      ( cfa -- f )   ['] execute = ;
+
+: constant?     ( cfa -- f ) call@ ['] 1     call@ = ;
+
+: does>?        ( cfa -- f ) dup call@ swap @ over =
+                             if drop false else cell+ call@ dodoes = then ;
+
+: m1cfa?        ( cfa -- f ) call@ m1cfa = ;
+
+: m0cfa?        ( cfa -- f ) call@ m0cfa = ;
+
+: ?JUMP  ( ip f -- ip' )  IF  CELL+ @  ELSE  2 CELLS +  THEN ;
+
+: <STRING>  ( ip -- ip' )   CELL+ COUNT + 1+ ALIGNED ;
+
+: <EXIT>  ( ip -- ip' )
+        drop nesting @ 0>
+        if      rtop @                          \ unnest level
+                dup ?name ?dup
+                if      ." Unnesting to: " .name
+                then    -1 nesting +!
+        else    ip0 @   ( done, reset ip for next time )
+                nesting off
+        then ;
+
+: <EXITP>  ( ip -- ip' )
+        drop nesting @ 0>
+        if      lp @ cell+ @            \ unnest level
+                dup ?name ?dup
+                if      ." Unnesting to: " .name
+                then    -1 nesting +!
+        else    ip0 @   ( done, reset ip for next time )
+                nesting off
+        then ;
+
+: <EXITM>  ( ip -- ip' )
+        drop nesting @ 0>
+        if      lp @ 2 cells+ @         \ unnest level
+                -1 nesting +!
+        else    ip0 @   ( done, reset ip for next time )
+                nesting off
+        then ;
+
+: dbg-next  ( -- )
+   IP @   DUP @ CASE
+     ['] LIT      OF  2 CELLS+                                  ENDOF
+        &flit     of  cells/float cells+ cell+                  ENDOF
+     ['] (IS)     OF  2 CELLS+                                  ENDOF
+     ['] COMPILE  OF  2 CELLS+                                  ENDOF
+     ['] BRANCH   OF  TRUE ?JUMP                                ENDOF
+     ['] _endof   OF  TRUE ?JUMP                                ENDOF
+     ['] _again   OF  TRUE ?JUMP                                ENDOF
+     ['] _repeat  OF  TRUE ?JUMP                                ENDOF
+     ['] leave    of  drop rp@ 5 cells+ @                       ENDOF
+     ['] ?leave   of  over
+                      if    drop rp@ 5 cells+ @
+                      else  cell+ then                          ENDOF
+     ['] ?BRANCH  OF  OVER 0= ?JUMP                             ENDOF
+     ['] _until   OF  OVER 0= ?JUMP                             ENDOF
+     ['] _while   OF  OVER 0= ?JUMP                             ENDOF
+     ['] (DO)     OF  2 CELLS +                                 ENDOF
+     ['] (?DO)    OF  OVER 3 PICK = ?JUMP                       ENDOF
+     ['] (LOOP)   OF  1 RTOP @ +OV? NOT ?JUMP                   ENDOF
+     ['] (+LOOP)  OF  OVER RTOP @ +OV? NOT ?JUMP                ENDOF
+     ['] _OF      OF  OVER 3 PICK <> ?JUMP                      ENDOF
+     ['] (S")     OF  <STRING>                                  ENDOF
+     ['] (C")     OF  <STRING>                                  ENDOF
+     ['] (Z")     OF  <STRING>                                  ENDOF
+     ['] (.")     OF  <STRING>                                  ENDOF
+     ['] (ABORT") OF  <STRING>                                  ENDOF
+     'EXIT        OF  <EXIT>                                    ENDOF
+     ['] (;CODE)  OF  <EXIT>                                    ENDOF
+     ['] UNNEST   OF  <EXIT>                                    ENDOF
+     ['] EXITP    OF  <EXITP>                                   ENDOF
+     ['] UNNESTP  OF  <EXITP>                                   ENDOF
+     ['] EXITM    OF  <EXITM>                                   ENDOF
+     ['] UNNESTM  OF  <EXITM>                                   ENDOF
+  ['] init-locals OF  2 cells+                                  ENDOF
+   DUP @ M1CFA =  IF  SWAP CELL+ SWAP ( skip an extra cell )    THEN
+                      dbg-next-cell do-chain
+                      SWAP CELL+ SWAP
+   ENDCASE   IP ! ;
+
+
+\ -------------------- Trace Commands --------------------
+
+defer debug-entry       ' noop is debug-entry   \ application init stuff
+defer debug-exit        ' noop is debug-exit    \ application un-init stuff
+
+create tib-save         260 allot
+create pocket-save      260 allot
+create here-save        260 allot
+create watch-buf        260 allot       watch-buf off   \ empty to start
+
+: perform-watch ( -- )
+                watch-buf count evaluate ;
+
+: do-watch      ( -- )
+                watch-buf c@ 0= ?exit
+                cr ." Watch-[" watch-buf count type ." ]: "
+                ['] perform-watch catch drop ;
+
+: run-forth
+        here   here-save     255 move
+        pocket pocket-save   255 move
+        source tib-save swap 255 min move      \ save SOURCE buffer
+        (source) 2@ 2>r >in @ >r                \ save SOURCE and >IN
+        begin   cr ." forth>  "
+                query  source nip
+        while   ['] interpret catch
+                if      ." <- interpret error!" beep
+                then
+        repeat
+        r> >in ! 2r> (source) 2!                \ restore SOURCE and >IN
+        tib-save source move                    \ restore SOURCE buffer
+        pocket-save pocket 255 move
+        here-save   here   255 move ;
+
+: dbg-watch     ( -- )
+        cr ." Enter a line to interpret after each instruction step is performed:"
+        cr watch-buf 1+ 255 accept watch-buf c! ;
+
+0 value emit-save
+0 value type-save
+0 value cr-save
+0 value key-save
+0 value key?-save
+0 value cls-save
+0 value gotoxy-save
+0 value getxy-save
+0 value tabing?-save
+0 value left-margin-save
+0 value indent-save
+0 value x-save
+0 value y-save
+
+: _dbg-nest  ( cfa -- )
+        false dbg-nest-chain do-chain ?exit
+        dup colon?                              \ colon definitions
+        if      >body ip !
+                1 nesting +! else
+        dup does>?                              \ does> definitions
+        if      ." DOES> nesting "
+                @ 2 cells + ip !
+                1 nesting +! else
+        dup defer?                              \ defered words
+        if      ." DEFER nesting " dup
+                case    ['] type of     drop   type-save  endof
+                        ['] emit of     drop   emit-save  endof
+                        ['] cr   of     drop     cr-save  endof
+                        ['] key  of     drop    key-save  endof
+                        ['] key? of     drop   key?-save  endof
+                        ['] cls  of     drop    cls-save  endof
+                      ['] gotoxy of     drop gotoxy-save  endof
+                       ['] getxy of     drop  getxy-save  endof
+                                        swap >body @ swap
+                endcase dup .name
+                [ reveal ] _dbg-nest else
+        dup execute?                            \ handle execute
+        if      ." EXECUTE nesting " over .name
+                drop dup _dbg-nest else
+        dup m0cfa?                              \ methods type zero
+        if      3 cells+ ip !
+                1 nesting +! else
+        dup m1cfa?                              \ methods type 1
+        if      2 cells+ ip !
+                1 nesting +! else
+        drop ." Can't nest " beep
+\        then
+        then then then then then then ;
+
+: dbg-nest      ( a1 -- )
+                ip @ @ _dbg-nest ;
+
+: dbg-unnest    ( -- )  \ not valid inside a loop or if >R has been used!
+                rtop @ here u<
+                if      rtop @ ip !
+                        -1 nesting +!
+                        rtop @ ?name ?dup
+                        if      ." Unnesting to: " .name
+                        then
+                else    ." Can't unnest " beep
+                then    ;
+
+: #dbg-rstack   ( a1 a2 -- )
+                cr ." RETURN STACK[" 2dup swap - cell / 1 .r ." ]: "
+                over max.rstack cells+ umin     \ limit return stack entries
+                swap over min
+                ?do     i @ ?name ?dup
+                        if      i @ here u<
+                                if      dup >name nfa-count type
+                                        i @
+                                        swap >body - cell / 1- ." +" %.
+                                else    h%.
+                                then
+                        else    i @ h%.
+                        then    12 ?cr
+          cell +loop    cr ;
+
+: dbg-rstack    ( -- )
+                rp@ 1 cells + rp0 @ #dbg-rstack ;
+
+: dbg-help
+        cr ."  ENTER/SPACE-single step, ESC/Q-quit,       C-continuous step,"
+        cr ."  P-proceed to def again,  D-done,  N-nest,  U-unnest,  F-forth, "
+        cr ."  R-show Return stack,     H-Hex toggle,     W-watch commands"
+        cr ."  J-Jump over next Word" ;
+
+: .wordtype     ( -- )
+        ip @ @ false .word-type-chain do-chain ?exit
+                dup colon?
+        if      drop ."    :  " exit
+        then    dup variable?
+        if      drop ." var   " exit
+        then    dup does>?
+        if      drop ." does  " exit
+        then    dup constant?
+        if      drop ." const " exit
+        then    dup defer?
+        if      drop ." defer " exit
+        then    dup  m0cfa?
+                over m1cfa? or
+        if      drop ." Meth: " exit
+        then    drop ." code  " ;
+
+0 value debug-base
+
+: .s-base       ( -- )
+                base @ >r debug-base base ! %.s r> base ! ;
+
+: base-toggle   ( -- )
+                debug-base 0x10 =
+                if      0x0A to debug-base
+                else    0x10 to debug-base
+                then    ;
+
+: restore-io    ( -- )
+                emit-save 0= ?exit
+                tabing?-save     to tabing?
+                left-margin-save to left-margin
+                indent-save      to indent
+                emit-save defer@ emit = ?exit
+                emit-save        is emit
+                type-save        is type
+                  cr-save        is cr
+                 key-save        is key
+                key?-save        is key?
+                 cls-save        is cls
+                gotoxy-save      is gotoxy
+                getxy-save       is getxy
+\               x-save y-save       gotoxy
+                0                to emit-save   \ clear emit flag
+                tabbing-off
+                ;
+
+: debug-io      ( -- )
+                defer@ emit    to   emit-save   \ save current contents
+                defer@ type    to   type-save
+                defer@ cr      to     cr-save
+                defer@ key     to    key-save
+                defer@ key?    to   key?-save
+                defer@ cls     to    cls-save
+                defer@ gotoxy  to gotoxy-save
+                defer@ getxy   to  getxy-save
+                forth-io
+\                ['] _key       is key
+\                ['] _key?      is key?
+                tabing?        to tabing?-save
+                left-margin    to left-margin-save
+                16             to left-margin
+                indent         to indent-save
+                -16            to indent
+                tabing-off ;
+
+\ -------------------- Trace Breakpoint --------------------
+
+-1 value nextbreak
+
+: trace  ( -- )
+        debug-entry
+        debug-io
+        r>
+        r@ rtop !
+        cell - dup >r
+        ip @ <>
+        if      true abort" trace error"
+        then
+        ip 2@ !  ( restore )
+        getxy drop 25 >
+        if      first-line
+                cr 25 col
+        then    .s-base
+        first-line
+        do-watch
+        first-line
+        cr .wordtype
+        nesting @ 0max ?dup
+        if      ." |" spaces
+        then
+        obj-save >r
+        defer@ cr >r ['] noop is cr
+        ip @ dup @ .execution-class drop
+        r> is cr
+        r> to obj-save
+        20 nesting @ ?dup if 1+ - then getxy drop max col
+        getxy drop 20 >
+        if      cr 20 col
+        then    ."  --> "
+        ?dbg-cont                               \ are we doing continuous steps
+        if      key?                           \ did user press a key
+                if      key drop               \ then discard it
+                        false to ?dbg-cont      \ stop continuous
+                        key upc                \ and wait for next command
+                else    ip @ @
+                        dup     'EXIT   =       \ if at EXIT
+                        over ['] UNNEST = or    \ or at UNNEST
+                        over ['] EXITP  = or    \ or at EXITP
+                        over ['] EXITM  = or    \ or at EXITM
+                        nip
+                        if      false to ?dbg-cont \ stop continuous
+                                key upc           \ and wait for next command
+                        else    0x0D               \ else just do an 'enter'
+                        then
+                then
+        else    key upc                        \ not continuous, get a key
+        then
+        case
+          ascii P of  ip0 @ ip ! nesting off            endof
+           ctrl P of  ip @ to nextbreak nesting off
+                      dbg-next 0x0D pushkey             endof
+          ascii J of  ip @ 2 cells+ to nextbreak nesting off
+                      dbg-next 0x0D pushkey             endof
+          ascii C of  true to ?dbg-cont                 endof   \ continuous
+          ascii D of  ip off  restore-io debug-exit
+                                                exit    endof
+          ascii H of  base-toggle                       endof
+          ascii N of  dbg-nest                          endof
+          ascii U of  dbg-unnest                        endof
+          ascii F of  run-forth                         endof
+          ascii R of  dbg-rstack                        endof
+          ascii W of  dbg-watch                         endof
+          ascii Q of  ip off  ." unbug" restore-io forth-io
+                                                abort   endof
+               27 of  ip off  ." unbug" restore-io forth-io
+                                                abort   endof
+          ascii ? of  dbg-help                          endof
+                      >r dbg-next ( default )
+                      nextbreak -1 <>
+                      if        nextbreak ip !
+                                -1 to nextbreak
+                      then
+                      r>
+        endcase
+        restore-io
+        debug-exit
+        [ last @ name> ] literal patch ;        \ patch in trace
+
+
+\ -------------------- Initialize Debugger --------------------
+
+forth definitions
+
+: .rstack       ( -- )
+                rp@ rp0 @ #dbg-rstack ;
+
+: unbug  ( -- )
+        ip @
+        if      ip 2@ !  ip off
+        then    ;
+
+synonym unbp unbug
+
+: adebug        ( cfa -- )      \ set a breakpoint at cfa
+        begin   false to obj-save
+                false to ?dbg-cont              \ turn off contuous step
+                base @ to debug-base
+                dup  colon?
+                over does>?   or
+                over defer?   or
+                0=
+           if   cr ." Must be a :, DEFER or DOES> definition"
+                drop EXIT
+           then dup  colon?
+           if   >body
+                TRUE
+           else dup does>?
+                if      ." DOES> nesting " call@ 2 cells +
+                        TRUE
+                else
+                    ." DEFER nesting "
+                        >body @ dup .name FALSE
+                then
+            then
+        until   dup ip0 ! ip !
+                ['] trace patch
+                nesting off ;
+
+: auto-debug-key ( -- )
+                debug-io
+                unbug ['] key-breaker adebug
+                restore-io ;
+
+: auto-debug-breaker ( -- )
+                debug-io
+                unbug ['] breaker adebug
+                restore-io ;
+
+: debug ( -<name>- )
+        unbug ' adebug ;
+
+synonym bp debug
+
+: debug-io debug-io ;
+: restore-io restore-io ;
+
+: dbg   ( -<name>- )    \ debug a word now
+        >in @ debug >in ! ;
+
+: watch         ( -<watch_command_line>- )
+                0 word c@
+                if      pocket count watch-buf place
+                else    dbg-watch
+                then    ;
+comment ö
+: #patchinto    ( a1 n1 -<name1 name2>- ) \ patch a1 into name1 at name2
+                >r                        \ at occurance n1
+                bl word anyfind 0= abort" Couldn't find the patchinto function"
+                bl word anyfind 0= abort" Replacable word isn't defined"
+                swap dup 0x200 ['] unnest lscan
+                0= abort" Couldn't find end of the function"
+                over - rot
+                r> 0
+                do      dup>r lscan dup
+                        0= abort" Couldn't find the replacable word in function"
+                        1- swap cell+ swap
+                        r>
+                loop    2drop cell - ! ;
+
+: patchinto     ( a1 -<name1 name2>- )
+                1 #patchinto ;
+ö
+only forth also definitions
+
+\s
+: test1  dup dup + + ;
+: test2  test1 test1 ;
+: test3  1 test2 test2 drop ;
+
+variable foo
+: test4  foo @ if  foo @ test2 .  then ;
+
+: test5  10 0 do i foo +! loop ;
+
+: wf  ." foo = " foo ? ;

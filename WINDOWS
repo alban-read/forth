@@ -1,0 +1,874 @@
+\ window classes
+cr .( Loading generic wimp windows support...)
+
+comment:
+
+    You will usually use WINDOWs by sending them a Start: message
+    passing the initial position. And you will close the window
+    by sending a Stop: message, what else.
+    GENERIC-WINDOWs are linked in a list so that the APPLICATION can
+    distribute the Wimp messages to the right GENERIC-WINDOW. (see pause')
+    WINDOWs are special GENERIC-WINDOWs which can respond to the
+    Wimp messages (On_*****: messages in WINDOW). You can do other
+    things with WINDOWs before opening them: SetTitleText: , Move: ,
+    GetSize: , Center: (get initial position so it will be centered
+    on the screen) and Print: .
+
+    Start: will Create: the WINDOW, then Open: it.
+
+    Create: sends a On_Init: message, then Move: and Build: itself.
+
+    Build: will create the memory structure for Wimp_CreateWindow.
+
+    When you say Stop: to a WINDOW, it Close: s and Delete: s itself.
+    The latter will invoke the newest On_Done: method.
+    So you may control the appearing and disappearing of WINDOWs in
+    several stages.
+
+      The basic work being done we can define a TEXT-WINDOW which
+    can display text. PutText: , PutCR: , BackSpace: , Cls: will
+    tell it what to display. You can control the cursor position.
+      The class EDIT-WINDOW can additionally gain the caret, although
+    I must admit that the handling is very incomplete.
+
+      CKey is a class to realise a circular key buffer. This could
+    be a place where keypresses to an application could be stored.
+
+      APPLICATIONs will distribute messages which arrive with them.
+    Keypresses to an object of CKey (PutKey:) , mouse clicks to the
+    appropriate WINDOW or ICONBAR-ICON (On_Click:)
+
+      In the end this file redefines the in/output deferred words
+    of the Forth system to work with windows.
+
+comment;
+
+code vsync
+  mov r0, # 19
+  swi " OS_Byte"
+next c;
+
+
+code Wimp_CreateWindow ( buf -- hndl )
+  mov r1, tos
+  swi " Wimp_CreateWindow"
+  mov tos, r0
+next c;
+
+code Wimp_DeleteWindow ( buf -- )
+  mov r1, tos
+  swi " Wimp_DeleteWindow"
+  ldmfd sp !, { tos }
+next c;
+
+code Wimp_OpenWindow ( buf -- )
+  mov r1, tos
+  swi " Wimp_OpenWindow"
+  ldmfd sp !, { tos }
+next c;
+
+code Wimp_CloseWindow ( buf -- )
+  mov r1, tos
+  swi " Wimp_CloseWindow"
+  ldmfd sp !, { tos }
+next c;
+
+code Wimp_RedrawWindow ( blk -- f )
+  mov r1, tos
+  swi " Wimp_RedrawWindow"
+  mov tos, r0
+next c;
+
+code Wimp_UpdateWindow ( blk -- f )
+  mov r1, tos
+  swi " Wimp_UpdateWindow"
+  mov tos, r0
+next c;
+
+code Wimp_GetRectangle ( buf -- f )
+  mov r1, tos
+  swi " Wimp_RedrawWindow"
+  mov tos, r0
+next c;
+
+code OS_Plot ( y x type -- )
+  mov r0, tos
+  ldmfd sp !, { r1, r2, tos }
+  swi " OS_Plot"
+next c;
+
+code Wimp_Initialise ( ^messages ^descr "TASK" osver -- thndl osver' )
+  mov r0, tos
+  ldmfd sp !, { r1, r2, r3 }
+  swi " Wimp_Initialise"
+  stmfd sp !, { r1 }
+  mov tos, r0
+next c;
+
+code Wimp_CloseDown ( "TASK" taskhndl -- )
+  mov r0, tos
+  ldmfd sp !, { r1, tos }
+  swi " Wimp_CloseDown"
+next c;
+
+code Wimp_Poll ( [^pollword] buf mask -- buf event )
+  mov r0, tos
+  tst r0, # &400000
+  ldmfd ne sp !, { r1, r3 }
+  ldmfd eq sp !, { r1 }
+  swi " Wimp_Poll"
+  mov tos, r0
+  stmfd sp !, { r1 }
+next c;
+
+code Wimp_SetCaretPosition ( index hght y x ihndl whndl -- )
+  mov r0, tos
+  ldmfd sp !, { r1, r2, r3, r4, r5, tos }
+  swi " Wimp_SetCaretPosition"
+next c;
+
+code Wimp_GetCaretPosition ( buf -- )
+  mov r1, tos
+  swi " Wimp_GetCaretPosition"
+  ldmfd sp !, { tos }
+next c;
+
+
+code Wimp_BlockCopy ( dymin dxmin symax sxmax symin sxmin whndl -- )
+  mov r0, tos
+  ldmfd sp !, { r1, r2, r3, r4, r5, r6, tos }
+  swi " Wimp_BlockCopy"
+next c;
+
+code Wimp_ReportError ( ^title flags ^errorblock -- res )
+  mov r0, tos
+  ldmfd sp !, { r1, r2 }
+  swi " Wimp_ReportError"
+  mov tos, r1
+next c;
+
+code Wimp_ForceRedraw ( ymax xmax ymin xmin whnd -- )
+  mov r0, tos
+  ldmfd sp !, { r1, r2, r3, r4, tos }
+  swi " Wimp_ForceRedraw"
+next c;
+
+code Wimp_GetWindowState ( block -- )
+  mov r1, tos
+  swi " Wimp_GetWindowState"
+  ldmfd sp !, { tos }
+next c;
+
+code Wimp_SendMessage ( Hicon Htask block eventcode -- )
+  mov r0, tos
+  ldmfd sp !, { r1, r2, r3, tos }
+  swi " Wimp_SendMessage"
+next c;
+
+code -32* ( n -- n' )
+  mov tos, tos, lsl # 5
+  rsb tos, tos, # 0
+next c;
+
+\ &1 constant WF_TitleBar
+&2 constant WF_Movable
+\ &4 constant WF_VScrollBar
+\ &8 constant WF_HScrollBar
+&10 constant WF_WimpRedraws
+&20 constant WF_Pane
+&40 constant WF_Outside
+\ &80 constant WF_NoBack/Close
+&100 constant WF_ScrollReqAR
+&200 constant WF_ScrollReq
+&400 constant WF_GCOLours
+&800 constant WF_NoBelow
+&1000 constant WF_HotKeys
+&2000 constant WF_StayOnScreen
+&4000 constant WF_IgnoreR
+&8000 constant WF_IgnoreL
+&10000 constant WF_Open?
+&20000 constant WF_OnTop?
+&40000 constant WF_FullSize?
+&80000 constant WF_ToggleSize?
+&100000 constant WF_InputFocus?
+&200000 constant WF_ForceOnScreen?
+&81000000 constant WF_BackIcon
+&82000000 constant WF_CloseIcon
+&84000000 constant WF_TitleBar
+&88000000 constant WF_ToggleSizeIcon
+&90000000 constant WF_VScrollBar
+&a0000000 constant WF_AdjSizeIcon
+&c0000000 constant WF_HScrollBar
+
+0 value windows-link
+
+0 value applobj
+0 value applwin
+0 value barpopup
+0 value lastpopup
+0 value outwindow
+
+create block 44 allot
+
+:class generic-window <super object <classpointer
+int hWnd
+
+:m ClassInit: ( -- )
+     0 to hWnd
+     here windows-link , to windows-link
+     self , ;m
+
+:m GetHandle: ( -- n )
+     hWnd ;m
+
+:m ZeroWindow: ( -- )
+     0 to hwnd ;m
+:m ~:         ( -- )
+     windows-link cell+ @ self =
+     if windows-link @ to windows-link
+     else windows-link
+       begin dup @ ?dup
+       while dup cell+ @ self =
+         if @ swap ! exitm then
+         nip
+       repeat
+     then ;m
+;class
+
+:class window <super generic-window <classpointer
+int xmin
+int ymin
+int xmax
+int ymax
+int xscroll
+int yscroll
+int behindhndl
+int wflags
+int ti/wacolour
+int sb/ticolour
+int waxmin
+int waymin
+int waxmax
+int waymax
+int TiIFlags
+int WBType
+int sprarea
+int minsize
+12 bytes title
+int #icons
+int mypopup
+64 bytes title"
+int ?open
+
+: SetSize     { dx dy -- }
+     screen-size
+     cells 44 - dy ymin + min to ymax
+     2*    22 - dx xmin + min to xmax ;
+
+:m GetSize:   ( -- x y )
+     xmax xmin - ymax ymin - ;m
+
+: SetMinSize  ( x y -- )
+     16 lshift swap &ffff and or to minsize ;
+
+:m SetTitleText: ( ^str -- )
+     dup c@ 12 <
+     if   count >r title r@ move 0 title r> + c!
+          TiIFlags [ IF_IndData invert ] literal and to TiIFlags
+     else count tuck title" place
+          title 8 + ! title" 1+ title ! title cell+ on
+          TiIFlags IF_IndData or to TiIFlags
+     then ;m
+
+: SetTiColour   ( fg bg sel -- )
+     &ff and 16 lshift sb/ticolour &ffff and or to sb/ticolour
+     &ff and 8 lshift swap &ff and or
+     ti/wacolour &ffff0000 and or      to ti/wacolour ;
+
+: SetWaColour   ( fg bg -- )
+     &ff and 8 lshift swap &ff and or 16 lshift
+     ti/wacolour &ffff and or          to ti/wacolour ;
+
+: SetWaSize   ( x y -- )
+     0 to waxmin      0 to waymax
+     negate to waymin   to waxmax ;
+
+: SetSBColour   ( in out -- )
+     &ff and swap &ff and 8 lshift or
+     sb/ticolour &ff0000 and or to sb/ticolour ;
+
+: SetScrollPos   ( x y -- )
+     to yscroll to xscroll ;
+
+: ChangeWFlags   ( n mask -- )
+     wflags and or to wflags ;
+
+:m ClassInit: ( -- )
+     ClassInit: super
+     640 320 SetSize
+     640 320 SetWaSize
+     0 0 SetMinSize
+     [ IF_Text                                nostack1
+       IF_Border    or
+       IF_HCentered or
+       IF_VCentered or
+       IF_FilledBG  or ] literal to TiIFlags
+     c" Window" SetTitleText: self
+     [ WF_Movable
+       WF_WimpRedraws or
+       WF_Outside     or
+       WF_ScrollReqAR or
+       WF_IgnoreR     or
+       WF_IgnoreL     or
+       WF_BackIcon    or
+       WF_CloseIcon   or
+       WF_VScrollBar  or
+       WF_AdjSizeIcon or
+       WF_HScrollBar  or
+       WF_ToggleSizeIcon or
+       WF_TitleBar    or ] literal 0 ChangeWFlags
+     1 to sprarea
+     Gray1 Gray3       SetSBColour
+     Black Gray2 Cream SetTiColour
+     Black White       SetWaColour
+     BT_1/Drag/2 to WBType
+     -1 to behindhndl 0 to #icons
+     0 to mypopup ;m            nostack1
+
+:m Move:      { px py -- }
+     screen-size
+     cells 44 - py ymax ymin - + min to ymax py to ymin
+     2*    22 - px xmax xmin - + min to xmax px to xmin ;m
+
+:m Center:    ( -- x y )
+     screen-size  ymax ymin - - 2/
+     swap 2* xmax xmin - - 2/ swap ;m
+
+:m Build:     ( ad -- ad' )
+     ^base cell+ ( hWnd ) over
+     88 move 88 + ;m
+
+:m On_Init:   ( -- )
+     ;m
+
+:m On_Done:   ( -- )
+     ;m
+
+:m Delete:    ( -- )
+     On_Done: [[ self ]]
+     hWnd block !
+     block Wimp_DeleteWindow
+     0 to hWnd ;m
+
+:m Create:    ( x y -- )
+     hWnd if Delete: self then
+     On_Init: [[ self ]]
+     Move: self
+     here 512 + aligned dup Build: [[ self ]] drop
+     Wimp_CreateWindow to hWnd ;m
+
+:m Open:     ( -- )
+     hWnd 0= if xmin ymin Create: self then
+     ^base Wimp_OpenWindow
+     true to ?open ;m
+
+:m Close:     ( -- )
+     hWnd block !
+     block Wimp_CloseWindow
+     false to ?open ;m
+
+:m Start:     ( x y -- )
+     hwnd 0= if Create: self else Move: self then
+     Open: self ;m
+
+:m Stop:
+     Close: self
+     Delete: self ;m
+
+:m On_Open:  ( block -- )
+     cell+
+     lcount to xmin    lcount to ymin
+     lcount to xmax    lcount to ymax
+     lcount to xscroll lcount to yscroll
+     @      to behindhndl
+     Open: self ;m
+
+:m On_Close: ( block -- )
+     drop Close: self ;m
+
+:m On_Menu: ( block -- )
+    mypopup
+    if dup @ 64 - swap 4 + @ start: mypopup
+       mypopup to lastpopup
+    else drop then ;m
+
+:m On_Select: ( block -- )
+     drop ;m
+
+:m On_Adjust: ( block -- )
+     drop ;m
+
+:m On_Click: ( block -- )
+     dup 8 + c@
+     case 4 of On_Select: [[ self ]] endof
+          2 of   On_Menu: [[ self ]] endof
+          1 of On_Adjust: [[ self ]] endof
+       nip
+     endcase
+     \ force caret to our window.
+      -1 -10 -10 -1 -1  hWnd Wimp_SetCaretPosition
+
+ ;m
+
+:m &popup:   ( -- ^obj )
+     &> mypopup ;m
+
+:m Print:
+     ." Window@" ^base . ." Title: "
+     TiIFlags IF_IndData and
+     if title" count type
+     else title zcount type
+     then ;m
+
+;class
+
+: ErrorBox ( z"ErrorText -- res )
+    z" Message from WimpForth"
+    %10010011
+    rot Wimp_ReportError ;
+
+
+:class text-window <super window
+int cols
+int rows
+int &thescreen
+int &endscreen
+int &title
+int xcur
+int ycur
+32 bytes caretpos
+
+: hascaret?
+   caretpos Wimp_GetCaretPosition
+   caretpos @ hWnd =
+ ;
+
+: caretoff
+  hascaret? if
+     -1 -10 -10 -1 -1  hWnd Wimp_SetCaretPosition
+   then
+  ;
+
+: caret
+  hascaret? if
+    -1 32 ycur 1+ -32* xcur 16* 4 + -1 hWnd Wimp_SetCaretPosition
+   then
+  ;
+
+
+:m ClassInit: ( ^title cols rows -- )
+     ClassInit: super
+     0 WF_WimpRedraws invert ChangeWFlags
+     to rows to cols
+     cols 16* rows 5 lshift 2dup
+     SetSize SetWaSize
+     SetTitleText: self ;m
+
+:m On_Init:   ( -- )
+     rows cols * dup allocate abort" Not enough Heap!"
+     tuck to &thescreen 2dup blank
+     + to &endscreen ;m
+
+:m On_Done:   ( -- )
+     &thescreen free drop
+     0 to &thescreen 0 to &endscreen ;m
+
+2variable plotpos
+
+code rectcalc ( cols block -- ad len #lines y x )
+  ldr r2, [ tos, # 16 ]
+  ldr r0, [ tos, # 24 ]
+  sub r2, r2, r0          \ r2=work_y0
+  ldr r0, [ tos, # 40 ]
+  sub r2, r2, r0
+  mov r3, r2, lsr # 5
+  ldmfd sp !, { r1 }
+  mul r3, r1, r3
+  and r2, r2, # &1f
+  add r0, r0, r2
+  sub r0, r0, # 2
+  ldr r1, [ tos, # 32 ]
+  sub r1, r0, r1
+  add r1, r1, # &1f
+  mov r1, r1, lsr # 5
+
+  ldr r2, [ tos, # 4 ]
+  ldr r4, [ tos, # 20 ]
+  sub r2, r2, r4          \ r2=work_x0
+  ldr r4, [ tos, # 28 ]
+  sub r5, r4, r2
+  ldr r2, [ tos, # 36 ]
+  add r3, r3, r5, lsr # 4
+  and r5, r5, # &f
+  sub tos, r4, r5
+  sub r2, r2, tos
+  add r2, r2, # &f
+  mov r2, r2, lsr # 4
+  stmfd sp !, { r0, r1, r2, r3 }
+next c;
+
+: DoRectangle
+    cols 2r@ drop
+    rectcalc ( ad len #lines y x )
+    plotpos 2! 0
+    ?do plotpos 2@ 188 OS_Plot     \ position on the screen
+      over &thescreen + dup &endscreen >= if drop leave then
+      over                         \ determine string to print
+      -trailing OS_WriteN          \ print it
+      -32 plotpos cell+ +!         \ bump screen pos
+      swap cols + swap             \ bump source
+    loop 2drop ;
+
+:m On_Redraw: ( block -- )
+     caretoff
+     dup>r Wimp_RedrawWindow
+     begin while
+       DoRectangle
+       r@ Wimp_GetRectangle
+     repeat r>drop
+     caret
+    ;m
+
+: Update ( x1 y1 x2 y2 -- )       \ 1=bottom left
+    -32* block dup>r 16 + !       \ 2=top right
+    16* r@ 12 + ! 1+ -32* r@ 8 + !  16* r@ 4 + !
+    hWnd r@ !
+    r@ Wimp_UpdateWindow
+    begin while
+      DoRectangle
+      r@ Wimp_GetRectangle
+    repeat r>drop
+    ;
+
+: Update+Clear ( x1 y1 x2 y2 -- )
+    -32* 32 + swap 16* 32 + 2swap 1+ -32* swap 16*
+    Hwnd Wimp_ForceRedraw
+     ;
+
+: PutText ( ad len -- x y )
+     dup xcur + cols - dup 0>=
+     if - else drop then tuck
+     &thescreen ycur cols * + xcur + swap cmove
+     xcur ycur rot +to xcur
+     caret ;
+
+: UpdateText ( x y -- )
+     xcur ycur Update
+      ;
+
+:m PutText: ( ad len -- )
+     PutText UpdateText
+      ;m
+
+: Scroll ( -- )
+       &thescreen cols + &thescreen rows 1- cols * dup>r cmove
+       &thescreen r> + cols blank
+       rows 1- -32* 0 -32 cols 16* rows -32* 0 hWnd Wimp_BlockCopy
+;
+
+:m PutCR: ( -- )
+     0 to xcur
+     ycur 1+ rows =
+     if Scroll
+       0 rows 1- cols over Update+Clear
+     else 1 +to ycur then
+      ;m
+
+:m BackSpace: ( -- )
+     xcur if -1 +to xcur
+            xcur ycur xcur 1+ over Update+Clear
+          else 7 OS_WriteC then
+      ;m
+
+:m Cls:       ( -- )
+     &thescreen cols rows * blank
+     0 rows 1- cols 0 Update+Clear
+     0 to xcur 0 to ycur
+    ;m
+
+:m GetXY: ( -- x y )
+     xcur ycur ;m
+
+:m GotoXY: ( x y -- )
+     to ycur to xcur
+   ;m
+
+:m GetColRow: ( -- col row )
+     cols rows ;m
+;class
+
+variable cblock
+
+:class CKey <super object
+132 bytes &keybuf
+
+:m ClassInit:
+     0 &keybuf w! ;m
+
+:m IsKey?: ( -- f )
+     &keybuf count swap c@ <> ;m
+
+: bump &keybuf + dup c@ 2 + &7f and swap c! ;
+
+:m PutKey: ( c -- )
+     &keybuf count swap c@ 2 - &7f and <>
+     if &keybuf count + 1+ w! 0 bump
+     else drop beep then ;m
+
+:m GetKey: ( -- c )
+     &keybuf count over c@ <>
+     if count + w@ 1 bump
+     else drop -1 then ;m
+
+:m On_Key: ( block -- )
+     24 + w@ PutKey: self
+
+     ;m
+;class
+
+:class edit-window <super text-window <classpointer
+
+:m ClassInit: ( cols rows -- )
+     ClassInit: super
+     BT_Click to WBType ;m
+
+
+
+:m On_Select: ( block -- )
+     drop   ;m
+
+:m PutText:   ( ad len -- )
+     PutText UpdateText
+      ;m
+
+:m PutCR:     ( -- )
+     0 to xcur
+     ycur 1+ rows =
+     if Scroll else 1 +to ycur then
+     0 ycur cols over Update+Clear
+    ;m
+
+
+;class
+
+also classes
+
+: getwin ( block -- block obj )
+    dup @ windows-link
+    begin ?dup
+    while 2dup cell+ @ GetHandle: [[ ]] =
+      if nip cell+ @ exit then
+      @
+    repeat abort" Window not found!" ;
+
+: zero-windows ( -- )
+    windows-link
+    begin ?dup
+    while dup cell+ @ ZeroWindow: [[ ]] @
+    repeat ;
+previous
+
+0 value OSVer
+0 value TaskHndl
+variable pausecfa
+
+: .platform
+    ." RISC OS " base @ >r decimal
+    OSVer 0 <# # # ascii . hold # #> type space r> base ! ;
+
+s" WimpForth Window" drop 1- 90 32 edit-window mainwindow
+mainwindow dup to outwindow to applwin
+
+:class iconbar-icon <super icon <classpointer
+
+:m ClassInit: ( ^str -- )
+     [ IF_Sprite IF_IndData or BT_Click or ] literal 0
+     ChangeIFlags: iconblock
+     SetText: iconblock
+     WH_IconBarR to hWnd
+     0 0 Move: iconblock
+     68 68 SetSize: iconblock
+     0 to hIcon ;m
+
+:m On_Click:  ( blk -- )
+     dup 8 + c@
+     case 2 of @ 64 - -96 start: barpopup
+               barpopup to lastpopup endof
+          4 of drop open: mainwindow endof
+     endcase ;m
+;class
+
+" !wimpforth" drop 1- iconbar-icon ibicon
+
+defer On_DataLoad ( ad len -- )
+
+also classes
+
+:class application <super object <classpointer
+CKey keybuf
+create PollBuf 256 allot
+
+: pause'
+
+    PollBuf 0 Wimp_Poll
+    case
+      1 of  On_Redraw: [[ getwin ]] endof
+      2 of            On_Open: [[ getwin ]] endof
+      8 of             On_Key:    applobj   endof
+     \ 12 of       On_GainCaret: [[ getwin ]] endof
+ \     11 of       On_LoseCaret: [[ getwin ]] endof
+      9 of   On_MenuSelection:    applobj   endof
+      6 of           On_Click:    applobj   endof
+      3 of           On_Close: [[ getwin ]] endof
+     17 of        On_UMessage:    applobj   endof
+     18 of     On_UMessageRec:    applobj   endof
+\     19 of     On_UMessageAck: [[ getwin ]] endof
+\      7 of         On_DragBox: [[ getwin ]] endof
+\      4 of  On_PointerLeaving: [[ getwin ]] endof
+\      5 of On_PointerEntering: [[ getwin ]] endof
+\     10 of On_ScrolReq: [[ getwin ]] endof
+\     13 of On_NonZeroPollWord: [[ getwin ]] endof
+     ( otherwise ) nip ( the pointer to block )
+    endcase ;
+
+:m ClassInit:
+     applobj abort" Only one Application!"
+     self to applobj ;m
+
+create d&dbuf 64 allot
+
+: message         ( block -- )
+    case dup 16 + @
+      0 of drop bye endof
+      3 of dup 44 + zcount d&dbuf place
+           dup 8 + @ over 12 + !
+           4 over 16 + !
+           0 swap dup 4 + @ swap 17 Wimp_SendMessage pause
+           d&dbuf count On_DataLoad endof
+      nip
+    endcase ;
+
+:m On_UMessageRec: ( block -- ) message  ;m
+
+:m On_UMessage:    ( block -- ) message  ;m
+
+:m Start:         ( -- )
+     block off
+     block z" WimpForth" &4b534154 310 Wimp_Initialise
+     to OSVer to TaskHndl
+     ['] pause' ['] pause dup @ pausecfa ! call!
+     ['] pause' is outpause
+     zero-windows
+     Create: ibicon ;m
+
+:m On_Click: ( block -- )
+     dup 12 + @ -2 =
+     if ibicon
+     else dup 12 + getwin nip then
+     On_Click: [[ ]] ;m
+
+:m On_MenuSelection: ( block -- )
+     Execute: lastpopup ;m
+
+:m On_Key: On_Key: keybuf ;m
+
+:m IsKey?: ( -- f ) IsKey?: keybuf ;m
+
+:m PutKey: ( c -- ) PutKey: keybuf ;m
+
+:m GetKey: ( -- c ) GetKey: keybuf ;m
+
+;class previous
+
+: wpushkey ( c -- )
+    PutKey: applobj ;
+
+: w"pushkeys     ( a1 n1 -- )    \ push the characters of string a1,n1
+                0max 127 min bounds
+                ?do     i c@ pushkey
+                loop    ;
+
+: loadit s" fload " "pushkeys "to-pathend" "pushkeys 13 pushkey ;
+' loadit is On_DataLoad
+' wpushkey is pushkey
+' w"pushkeys is "pushkeys
+
+: wtype ( ad len -- )
+    PutText: outwindow outpause ;
+
+: wemit ( c -- )
+    dup bl <
+    if
+      case
+        7 of 7 OS_WriteC endof
+        8 of BackSpace: outwindow endof
+       10 of PutCR: outwindow endof
+      endcase
+    else  sp@ 1 wtype drop then
+    ;
+
+: wcr  PutCR: outwindow  ;
+
+: wcrtab
+    PutCR: outwindow
+    tabing? 0= ?exit
+    first-line?
+    if left-margin indent + spaces false to first-line?
+    else left-margin spaces tab-margin spaces
+    then ;
+
+: wkey? pause IsKey?: applobj ;
+
+: wkey  begin pause IsKey?: applobj until
+        GetKey: applobj ;
+
+: wgetcolrow GetColRow: outwindow ;
+
+: wgetxy     GetXY: outwindow ;
+
+: wgotoxy    GotoXY: outwindow ;
+
+: wcol       wgetcolrow drop 1- min wgetxy drop - spaces ;
+
+: w?cr       wgetxy drop + wgetcolrow drop > if cr then ;
+
+: wcls       Cls: outwindow ;
+
+: window-io     ( -- )                  \ reset to Forth IO words
+                ['] wemit      is emit
+                ['] wtype      is type
+                ['] wcrtab       is cr
+                ['] w?cr        is ?cr
+                ['] wkey       is key
+                ['] wkey?      is key?
+                ['] wcls        is cls
+\                [']  cls        is page
+                ['] wgotoxy     is gotoxy
+                ['] wgetxy      is getxy
+                ['] wgetcolrow  is getcolrow
+                ['] wcol        is col ;
+forth-io-chain chain-add window-io
+
+: exit-stuff ( -- )
+    bye-chain do-chain 0 &58454241 0 os_exit ;
+
+' exit-stuff is bye
+
+: .leaving
+    ." Leaving..." cr ;
+
+: ExitWimp &4b534154 TaskHndl Wimp_CloseDown ;
+
+bye-chain chain-add .leaving
+
+bye-chain chain-add ExitWimp

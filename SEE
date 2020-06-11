@@ -1,0 +1,247 @@
+\ $Id: see.f 1.1 1994/04/01 07:53:29 andrew Exp $
+
+cr .( Loading the Decompiler...)
+
+( Decompiler from F83 )
+
+(( A Forth decompiler is a utility program that translates
+  executable forth code back into source code.  Normally this is
+  impossible, since traditional compilers produce more object
+  code than source, but in Forth it is quite easy.  The decompiler
+  is almost one to one, failing only to correctly decompile the
+  various Forth control stuctures and special compiling words.
+  It was written with modifiability in mind, so if you add your
+  own special compiling words, it will be easy to change the
+  decompiler to include them.  This code is highly implementation
+  dependant, and will NOT work on other Forth system.  To invoke
+  the decompiler, use the word SEE <name> where <name> is the
+  name of a Forth word. ))
+
+
+only forth also definitions decimal
+
+new-chain .execution-class-chain
+new-chain .other-class-chain
+
+0 value &flit
+2 value cells/float
+
+: dummy.float   ( a1 -- a2 )
+                ." ???" cells/float cells+ ;
+
+defer .float    ' dummy.float is .float
+
+vocabulary hidden
+
+DEFER (SEE)  ( cfa -- )
+
+HIDDEN DEFINITIONS
+
+: .WORD         ( IP -- IP' )
+                DUP @ DUP 32768 HERE within
+        IF      DUP >R call@
+                CASE   DOVALUE   OF R@                         .NAME   ENDOF
+                       DOVALUE!  OF R@ ." TO "       2 CELLS - .NAME   ENDOF
+                       DOVALUE+! OF R@ ." +TO "      3 CELLS - .NAME   ENDOF
+                      DO2VALUE!  OF R@ ." 2TO "      2 CELLS - .NAME   ENDOF
+                      DO2VALUE+! OF R@ ." 2+TO "     3 CELLS - .NAME   ENDOF
+                       DOLOCAL   OF R@                         .NAME   ENDOF
+                       DOLOCAL!  OF R@ ." TO "       2 CELLS - .NAME   ENDOF
+                       DOLOCAL+! OF R@ ." +TO "      3 CELLS - .NAME   ENDOF
+                       (IV@)     OF R@ ." I:"                  .NAME   ENDOF
+                       (IV!)     OF R@ ." TO-I: "    2 CELLS - .NAME   ENDOF
+                       (IV+!)    OF R@ ." +TO-I: "   3 CELLS - .NAME   ENDOF
+                       (IV[]@)   OF R@ ." I[]:"                .NAME   ENDOF
+                       (IV[]!)   OF R@ ." TO-I[]: "  2 CELLS - .NAME   ENDOF
+                       (IV[]+!)  OF R@ ." +TO-I[]: " 3 CELLS - .NAME   ENDOF
+\+ .M0NAME             M0CFA     OF R@ ." M0:"               .M0NAME   ENDOF
+\+ .M1NAME             M1CFA     OF R@ ." M1:"               .M1NAME   ENDOF
+                       DOOBJ     OF R@ ." O:"                  .NAME   ENDOF
+                                    R@                         .NAME
+                ENDCASE R> DROP
+        ELSE    1 h.r ." h "
+        THEN    CELL+ ;
+
+\ : .LIT          ( ip -- ip' )
+\                 ." lit " .word ;
+
+: .BRANCH       ( IP -- IP' )
+                .WORD  DUP @ CELL /  dup 0> if ." +" then h.  CELL+   ;
+
+: .STRING       ( IP -- IP' )
+                34 emit space
+                CELL+
+                dup c@ ?line
+                COUNT 2DUP TYPE  34 emit space + 1+ aligned ;
+
+\ : .call ( ip -- ip' )
+\         .word .word ;
+
+: .locals       ( IP -- IP' )
+                ." INIT-LOCALS "
+                cols ?line ." LOCALS|"
+                DUP 1+ c@ dup 0
+                ?do     ."  L" i 2 pick c@ + 1 .r
+                loop    drop
+                dup c@ ?dup
+                if      ."  \"
+                        dup 0
+                        ?do     ."  L" i 1 .r
+                        loop    drop
+                then    ."  | " cols ?line
+                CELL+ ;
+
+\ Decompile each type of word                         28Feb84map
+
+: does?  ( ip -- ip+ flag )
+        dup 8 +  swap call@ dodoes = ;
+
+: .(;CODE)    ( IP -- IP' )
+   CELL+  DOES? IF  ." DOES> "  ELSE  ." ;CODE "  DROP FALSE  THEN  ;
+
+: .execution-class  ( ip cfa -- ip' )
+    case
+        ['] lit         of cell+ ." lit "   .word                 endof
+            &flit       of cell+ ." flit "  .float                endof
+        ['] (is)        of cell+ ." (is) "  .word                 endof
+        ['] (.")        of ." ."        .string                   endof
+        ['] (S")        of ." S"        .string                   endof
+        ['] (Z")        of ." Z"        .string                   endof
+        ['] (C")        of ." C"        .string                   endof
+        ['] (abort")    of ." ABORT"    .string                   endof
+        ['] ?branch     of      cr ." IF  " +tab      cell+ cell+ endof
+        ['] branch      of -tab cr ." ELSE " +tab     cell+ cell+ endof
+        ['] (do)        of      cr ." DO  " +tab      cell+ cell+ endof
+        ['] (?do)       of      cr ." ?DO " +tab      cell+ cell+ endof
+        ['] (loop)      of -tab cr ." LOOP "          cell+ cell+ endof
+        ['] (+loop)     of -tab cr ." +LOOP "         cell+ cell+ endof
+        ['] _case       of      cr ." CASE    " +tab  cell+       endof
+        ['] _of         of      cr ." OF      " +tab  cell+ cell+ endof
+        ['] _endof      of     tab ." ENDOF   " -tab  cr
+                                                      cell+ cell+ endof
+        ['] _endcase    of -tab cr ." ENDCASE "       cell+       endof
+        ['] _then       of -tab cr ." THEN "          cell+       endof
+        ['] _begin      of      cr ." BEGIN " +tab    cell+       endof
+        ['] _while      of -tab cr ." WHILE " +tab    cell+ cell+ endof
+        ['] _until      of -tab cr ." UNTIL  "        cell+ cell+ endof
+        ['] _repeat     of -tab cr ." REPEAT "        cell+ cell+ endof
+        ['] _again      of -tab cr ." AGAIN  "        cell+ cell+ endof
+        ['] _localalloc of ." LOCALALLOC: " cell+ dup @
+                                          2 cells- .name cr cell+ endof
+        ['] compile     of .word .word                            endof
+        ['] unnest      of ." ; "  drop  0                        endof
+        ['] unnestm     of ." ;M " drop  0                        endof
+        ['] unnestp     of ." ;P " drop  0                        endof
+        ['] (;code)     of -tab cr .(;CODE) tab +tab              endof
+        ['] create      of cr .word tab +tab                      endof
+        ['] init-locals of cell+ .locals                          endof
+                           false .execution-class-chain do-chain 0=
+                           if    swap .word swap
+                           then
+    endcase     ;
+
+
+\ Decompile a : definition                            15Mar83map
+
+: .PFA          ( CFA -- ) 
+                tabing-on
+                0TAB +TAB tab
+                BEGIN   2 ?line  DUP @ .EXECUTION-CLASS
+                        tabing-off
+                        start/stop
+                        tabing-on
+                        DUP 0=
+                UNTIL   DROP
+                tabing-off ;
+
+: .IMMEDIATE   ( CFA -- )
+   >NAME C@ 128 AND IF   ." IMMEDIATE "   THEN   ;
+
+
+\ Display category of word                            24APR84HHL
+
+: .CONSTANT     ( CFA -- )
+                DUP >BODY ?   ." CONSTANT "   .NAME   ;
+
+: .VARIABLE     ( CFA -- )
+                DUP >BODY .   ." VARIABLE "   DUP .NAME
+                ." Value = " >BODY ?   ;
+
+: .VALUE        ( CFA -- )
+                DUP cell+ ?  ." VALUE "   .NAME  ;
+
+: .CLASS        ( CFA -- )
+                ." :CLASS "  .NAME  ;
+
+: .VOCABULARY   ( CFA -- )
+                ." VOCABULARY "  .NAME  ;
+
+: .:            ( CFA -- )
+                ." : "  DUP .NAME 2 SPACES  >BODY .PFA   ;
+
+: .DOES>        ( PFA -- )
+                ." DOES> "  .PFA   ;
+
+
+\ Display category of word                            24APR84HHL
+: .DEFER   ( CFA -- )
+           ." DEFER " DUP .NAME   ." IS "  >BODY @ (SEE)  ;
+
+DEFER DISCODE   ' DROP IS DISCODE
+
+\               ' DROP IS-DEFAULT DISCODE
+
+: .CODE    ( CFA -- )
+           ." IS CODE " cr DISCODE ;
+
+: .;CODE   ( CFA -- )
+           ." IS ;CODE " call@ DISCODE ;
+
+: .SYNONYM ( CFA -- )
+           ." SYNONYM " DUP .NAME ." IS " >BODY CELL+ @ (SEE) ;
+
+: .OTHER        ( CFA -- )
+                DUP .NAME
+                .other-class-chain do-chain ?dup
+                if      DUP c@ 0xeb  =
+                        IF dup call@ DOES?
+                          IF   .DOES>   DROP   EXIT
+                          ELSE .;CODE          EXIT     THEN
+                        THEN
+                        .CODE
+                then    ;
+
+
+synonym a_synonym noop
+0 value a_value
+
+\ Classify a word based on its CFA                    09SEP83HHL
+
+: .definition-class  ( cfa cfa -- )
+    call@ case
+        ['] quit call@       of .:          endof
+        ['] TRUE call@       of .constant   endof
+        ['] last call@       of .variable   endof
+        ['] (see) @          of .defer      endof
+        ['] a_value call@    of .value      endof
+        ['] a_synonym call@  of .synonym    endof
+            doClass          of .class      endof
+            do|Class         of .class      endof
+        ['] forth call@      of .vocabulary endof
+\            doColP         of .:P         endof
+        swap .other
+    endcase ;
+
+
+\ Top level of the Decompiler SEE                     29Sep83map
+
+: ((SEE))       ( Cfa -- )
+                CR DUP DUP .DEFINITION-CLASS  .IMMEDIATE   ;
+
+' ((SEE)) IS (SEE)
+
+FORTH DEFINITIONS
+
+: SEE   ( -- )
+   '   (SEE)    ;
+

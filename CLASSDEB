@@ -1,0 +1,58 @@
+\ classdbg.f
+
+cr .( Loading Object Debugging support...)
+
+: methods       ( object-address -- )  [ classes ]
+                depth 0=
+                if      ' execute
+                then
+                cr >class  MFA
+                begin   @ ?dup
+                while   dup cell+ @ unhash
+                        type 14 #tab space 14 ?cr
+                repeat  ;
+
+: ivars         ( object-address -- )  [ classes ]
+                depth 0=
+                if      ' execute
+                then
+                cr >class IFA
+                begin   @ ?dup
+                while   dup cell+ @ unhash
+                        type 10 #tab ."  (" dup 3 cells+ @ 1 .r ." )"
+                        10 #tab space 20 ?cr
+                repeat ;
+
+
+: privates      ( class-cfa -- )
+                context @
+                swap >class context !  words
+                context ! ;
+
+classes also hidden also bug also
+
+: GetMethod     ( -<method object>- m0cfa )
+                @word dup count + 1- c@ ':' <> \ allow windows messages too
+                if      anyfind 0= abort" Undefined Method"
+                        execute
+                else    count hash
+                then    ' execute find-method swap to obj-save ;
+
+: msee          ( -<method object>- )
+                GetMethod cr ." :M " dup .m0name 2 spaces
+                3 cells+                        \ step to the PFA
+                .pfa ;                          \ decompile the definition
+
+: mdebug        ( -<method object>- )
+                unbug
+                false to ?dbg-cont              \ turn off contuous step
+                base @ to debug-base
+                GetMethod 3 cells+ dup ip0 ! ip !
+                ['] trace patch
+                nesting off ;
+
+: mdbg          ( -<method object>- )    \ debug a method now
+                >in @ mdebug >in ! ;
+
+only forth also definitions
+

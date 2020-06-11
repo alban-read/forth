@@ -1,0 +1,26 @@
+
+        Code Structure of the WimpForth dictionary
+
+    The Header Structure:
+      Dummy bytes, so that the                 00 00
+      NAME FIELD: name-characters length-byte  'F' 'O' 'R' 'T' 'H' 05
+        ends word aligned
+      VIEW FIELD: line number in source file   xx xx xx xx
+      LINK FIELD: address of previous word
+        in this thread                         yy yy yy yy
+      CODE FIELD: code
+      
+    The NEXT macro consists of the instruction
+         ldr pc, [ ip ], # 4
+    This means that after the header NEXT expects code at the CFA.
+    Code words will start their viscious work immediately.
+    Deferred words load the pc from the next cell: ldr pc, [ pc, # -4 ]
+    Other words will branch with link to their DO***** routines
+    (see beginning of fkernel for details).
+    
+    Win32Forth by Andrew McKewan and Tom Zimmer, from which WimpForth
+    is heavily derived, expects a pointer to code in the CFA.
+    This makes WimpForth programs incompatible with utilities in
+    Win32Forth. But you can fix it by replacing every @ on CFAs
+    with a CALL@.
+    

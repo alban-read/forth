@@ -1,0 +1,118 @@
+
+              Some Sort of Documentation on !WimpForth
+
+   By Martin :-
+   
+   Here is the first release of !WimpForth you probably waited for
+    a long time. Its main purpose is to make it easier to write
+    Forth programs running under the Wimp of RISC OS. For now it
+    uses in its bootup sequence Version 3.10, but I haven't used
+    RISC OS 3 routines awfully lot, so that it should also run
+    if you change the number in the code.
+    
+    The Forth machine is VERY true to the Win32Forth machine
+    designed by Andrew McKewan and Tom Zimmer. They both deserve
+    big thanks, since I reused so much code (and it was reusable!)
+    that you might call WimpForth a port of Win32Forth (originally
+    on ******* 95/NT).
+    
+    But nevertheless there are some differences. WimpForth has
+    an ARM assembler/disassembler and a full ARM machine code kernel.
+    For differences in machine design please have a look at the file
+    "DesignNote".
+    
+    Important features of WimpForth:
+    * As I copied the functionality from an ANS compliant system,
+      you should be able to compile ANS Forth programs on it.
+    * source level debugger, decompiler
+    * ARM assembler/disassembler
+    * object orientation like Yerk on the Macs teached the forthers
+    * window, icon, control, dialog, menu... classes to
+      make programming them as easy AND controllable as possible
+    * variable number of threads in vocabularies
+    * strong WORDS implementation
+    * easy invocation of CLI commands, time control, system variables
+    * local labels
+    * Wimp interface (yes, it's a real wimp program!)
+    * Drag&Drop Filer->Forth window will load forth files.
+    * reads normal text files with 16K buffer
+    
+    * AND FULL SOURCE INCLUDED - if you find bugs or features you
+      don't like, correct them in the source until they work as
+      you like.
+      
+    Otherwise WimpForth will behave like other Forths, please refer
+    to standard literature ("Thinking Forth" - Leo Brodie) to learn
+    about the power of Forth.
+
+    The first steps you could try anyway, are typing
+    "words",
+    "see interpret",
+    "1 2 +",
+    ".s",
+    "h.",
+    "vocs"
+    "order"
+    clicking MENU on the Forth Window and on the icon bar.
+    
+    For recompiling the whole system, run !WimpForth by double clicking
+    it from the filer and then start "F", which is a >130K executable
+    and includes the complete system. If that doesn't work, please
+    report to the email address below.
+    1) Now take the file "meta" from the filer and drop it on the
+    Forth window (or simply type "fload meta <return>"). Wait a few
+    seconds until the kernel is created, then quit WimpForth
+    by typing "bye" or selecting the Quit lines in the menus.
+    2) Then run the file "Xtend" which loads the file "extend" into the
+    just compiled kernel, and there you have your totally new system.
+    You may also take only the second step if you haven't done
+    anything to the kernel.
+   
+    For a little documentation on the words present in Wimp Forth,
+    watch out in the following files:
+    
+    fkernel   - holds the full source of the kernel
+    primutil  - some necessary utilities
+    dump      - a dump utility
+    dthread   - displays and counts threads and vocabularies
+    order     - implements wordlists and vocabularies
+    assert    - the assert wordset
+    primhash  - prepares class orientation
+    see       - a Forth decompiler
+    interpif  - makes conditional compiling possible
+    debug     - a Forth debugger
+    build     - experimental new defining word
+    words     - lists words in vocabularies, also good for searching
+    pasm      - ARM post-/prefix assembler
+    disarm    - ARM disassembler
+    utils     - bunch of utilities
+    args      - local labels
+    class     - object orientation
+    classdebug- to see/debug methods
+    colours   - wimp colour constants
+    icons     - icon classes
+    menus     - menu classes
+    windows   - window classes
+    controls  - dialog boxes... in classes
+    
+    extend    - loads them all together and adds the Wimp objects
+                for WimpForth. Adaptable to have a CLI version.
+                
+    config    - file gets loaded whenever WimpForth starts up
+    
+    ssort     - a simple Shell Sort routine, if you need it
+    winsee    - see words in windows
+    
+    That is all. I should notice that WimpForth comes 'as is', and
+    the authors cannot be made responsible for damage due to errors
+    in the program. You may make copies of WimpForth as often as
+    you like (SPREAD IT), but do not charge money for it. And
+    please, copy it completely whenever possible.
+    
+    If you find errors, uncovered cases, misfeatures etc.,
+    please report to
+    
+    Martin 
+    
+			  
+    Happy Forthing!

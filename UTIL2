@@ -1,0 +1,72 @@
+\ util2
+
+\ is the ARM in 32 bit mode.
+\ true if running in 32 bit mode false otherwise.
+
+code 32bit?
+ stmfd sp !, { tos }
+ teq r0, r0
+ teq pc, pc
+ mvn eq tos, # 0
+ mov ne tos, # 0
+next c;
+
+
+: mode? 32bit? if ." 32 " else ." 26 " then ." bit mode " cr ;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+@

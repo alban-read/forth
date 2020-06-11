@@ -1,0 +1,1021 @@
+\ UTILS.F               A file to holw some utilities   by Tom Zimmer
+
+cr .( Loading various Utility words...)
+
+comment }
+    screen-size                   \ x y in pixels
+    OSVar@ OSVar!                 \ RISC OS Variables handling
+    .defered                      \ lists all deferred words
+    .cur-file                     \ prints out the current file
+    cd                            \ changes the current directory
+    .fpath , fpath+               \ path for file opening operations
+    fsave f1                      \ saves the current system as executable
+    turnkey                       \ installs a boot action and saves absolute
+    .loaded                       \ lists all loaded files
+    needs  filename               \ loads filename if not loaded
+    $exec                         \ executes OS command line given
+    locate +                      \ prints source file lines for +
+    .free                         \ displays amount of free memory
+    anew prog                     \ forgets old version if loaded anew
+    .date , .time , .cversion     \ time display words
+    comment:     This can be a multiline comment       comment;
+}
+
+only forth also definitions
+
+code OS_ReadModeVariable ( varnr mode -- res )
+  mov r0, tos
+  ldmfd sp !, { r1 }
+  swi " OS_ReadModeVariable"
+  mov tos, r2
+next c;
+
+: screen-size ( -- width height )
+    11 -1 OS_ReadModeVariable  12 -1 OS_ReadModeVariable ;
+
+code OS_ReadVarVal ( -- )
+  mov r0, tos
+  ldmfd sp !, { r1, r2, r3, r4 }
+  swi x " OS_ReadVarVal"
+  mov tos, r2
+  stmfd sp !, { r3, r4 }
+next c;
+
+code OS_SetVarVal ( -- )
+  mov r0, tos
+  ldmfd sp !, { r1, r2, r3, r4 }
+  swi x " OS_SetVarVal"
+  mov tos, r3
+  stmfd sp !, { r4 }
+next c;
+
+ 0 constant VarType_String
+ 1 constant VarType_Number
+ 2 constant VarType_Macro
+ 3 constant VarType_Expanded
+ 4 constant VarType_LiteralString
+16 constant VarType_Code
+
+: OSVar@ ( buf len ^name -- len' )
+    >r swap 0 0 2swap r> OS_ReadVarVal nip nip ;
+
+: OSVar! ( type buf len ^name -- )
+    >r swap 0 -rot r> OS_SetVarVal 2drop ;
+
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\       User specifiable string delimiter utility
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
+: ,$            ( -< #text#>- )
+                >in @ bl word swap >in ! 1+ c@
+                word count here place here c@ 1+ allot 0 c, align ;
+
+: .$            ( -< #text#>- )
+                compile (.") ,$ ; immediate
+
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\       words to set the default function for a defered word
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
+: _is-default   ( cfa -- )
+                @(ip) >body 2 cells+ ! ;
+
+: is-default    ( cfa -<name>- ) \ set the default field of a defered word
+                state @
+                if      compile _is-default
+                else    ' >body 2 cells+ !
+                then    ; immediate
+
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\       fill in some defered words default functions
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
+' _gotoxy    is-default gotoxy
+' _getxy     is-default getxy
+' _getcolrow is-default getcolrow
+' _beep      is-default beep
+\ ' _do-mabort is-default do-mabort
+
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\       sound extention
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
+synonym note tone               \ freq duration --
+
+: beep-init     ( -- )          \ initialize beep to new parameters
+                700 50 beep! ;
+
+initialization-chain chain-add beep-init
+
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\       define a word to restore a defered word to its default function
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
+: _restore_default ( -- )
+                @(ip) >body dup 2 cells+ @ swap ! ;
+
+: restore-default ( -<name>- )    \ reset name to its default function
+                state @
+                if      compile _restore_default
+                else    ' >body dup 2 cells+ @ swap !
+                then    ; immediate
+
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\ Display the defered words in the system, and their *current function
+\ along with the default function.
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
+: .defered      ( -- )
+                defer-list @
+                begin   ?dup
+                while   cr ." Defered: "
+                        dup cell - dup body> >name .id
+                        23 col ."  does: " @ >name .id
+                        45 col ."  defaults to: " dup cell+ @ >name .id
+                        @
+                        start/stop
+                repeat  ;
+
+: .cur-file     ( -- )
+                ." The current file is: " cur-file count type ;
+
+synonym .curfile .cur-file
+synonym .file    .cur-file
+
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\ old original version of $EXEC, superceeded by the following series of words
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
+code OS_CLI ( ad -- f )
+  mov r0, tos
+  swi x " OS_CLI"
+  mov vs tos, # 0
+  mvn vc tos, # 0
+next c;
+
+: zEXEC         ( a1 -- f1 )
+                dup count + 0 swap c!         \ null terminate string
+                1+ OS_CLI ;
+
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\       Multiple directory path search capability for file open
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+: named-new$
+    create max-path allot ;
+
+named-new$ &execbuf
+named-new$ &filebuf
+    create &fpath   max-path allot      \ a static forth path buffer
+           &fpath   off
+  variable &linenum &linenum off
+
+2variable path-source
+
+&fpath value path-ptr                   \ initialize the path buffer pointer
+
+: next-path"    ( -- a1 n1 )            \ get the next path from dir list
+                path-source 2@ 2dup ',' scan  2dup 1 /string path-source 2!
+                nip - ;
+
+: first-path"   ( -- a1 n1 )            \ get the first forth directory path
+                path-ptr count path-source 2!
+                next-path" ;
+
+: "fpath+       ( a1 n1 -- )            \ append a directory to forth path
+                2dup upper
+                2dup + 1- c@ '.' =              \ end in '\'?
+                if      1- 0max                 \ if so, delete it
+                then    first-path"                     \ get first path
+                begin   dup>r 2over compare dup r> and  \ check it
+                while   drop
+                        next-path"                      \ and remaining paths
+                repeat  0=              \ -- f1=true if already in list
+                if      2drop
+                else    path-ptr ?+, path-ptr +place
+                then    ;
+
+: append
+   over over
+   >r >r
+   count chars +
+   swap cmove
+   >r >r
+   dup >r
+   c@ +
+   r> c!  ;
+
+
+create cdir-buf 260 allot
+create cfs-buf 260 allot
+
+
+code OS_GBPB567 ( args nr -- f )
+  mov r0, tos
+  ldmfd sp !, { r2 }
+  swi x " OS_GBPB"
+  mov vs tos, # 0
+  mvn vc tos, # 0
+next c;
+
+: current-fs$  ( -- a1 )       \ get the full path to the current directory
+                cfs-buf 1+ max-path z" FileSwitch$CurrentFilingSystem" OSVar@
+                dup cfs-buf c!
+                0= abort" Can't get the Current File System!"
+                cfs-buf 0 over count + c! ;
+
+
+\ AR: this caters for running forth on different file systems.
+create envDir$ 96 allot envDir$ 96 erase
+
+: makeQueryCSD
+  s" FileSwitch$" envDir$ place
+  current-fs$ count envDir$ +place
+  " $CSD" envDir$ +place ;
+
+: current-dir$  ( -- a1 )
+
+		cdir-buf 1+ max-path envDir$ 1+  OSVar@
+                dup cdir-buf c!
+                0= abort" Can't get the Current Directory!"
+                cdir-buf 0 over count + c! ;
+
+code OS_FSControl01 ( buf -- f )
+  mov r0, tos
+  ldmfd sp !, { r1 }
+  swi x " OS_FSControl"
+  mov vs tos, # 0
+  mvn vc tos, # 0
+next c;
+
+: $current-dir! ( a1 -- f1 )    \ a1 is a null terminated directory string
+                0 OS_FSControl01 ;
+
+: chdir         ( -<optional_new_directory>- )
+                bl word dup c@
+                if      dup 1+ $current-dir! drop
+                then    drop
+                cr ." Current directory: " current-dir$ count type ;
+
+synonym cd chdir
+
+: program-name-init ( -- )
+		makeQueryCSD
+                path-ptr off
+                &prognam 1+ 255 envDir$ 1+ OSVar@ &prognam c!
+                " .F" &prognam +place
+                current-dir$ count 2dup upper path-ptr place
+                path-ptr ?-.
+                &prognam count "path-only" "fpath+
+                path-ptr ?-. ;
+
+program-name-init       \ initialize the program name buffer
+
+initialization-chain chain-add program-name-init
+
+: .program      ( -- )
+                &prognam count type ;
+
+: .fpath        ( -- )          \ display the forth directory search path list
+                path-ptr count
+                begin   ?dup
+                while   2dup ',' scan 2dup 2>r nip - dup 1+ ?cr type
+                        2r> 1 /string dup
+                        if      ." ,"
+                        then
+                repeat  drop ;
+
+: fpath+        ( -<directory>- )       \ append a directory to forth path
+                bl word count "fpath+ ;
+
+create open-save$ 260 allot     \ buffer to save the file being opened
+create open-path$ 260 allot
+                                        \ f1=FALSE=success, TRUE=failed
+: n"open        ( a1 n1 -- handle f1 )          \ open file a1,n1 with path search
+                open-save$ place                \ save filename for later
+                open-save$ count _"open dup     \ if we couldn't open the file
+                if      open-save$ count 0 min + c@ ':' <>      \ not if first is ':'
+                        open-save$ count 0 min + c@ '$' <> and  \ not if first is '$'
+                        if      2drop                           \ discard _"open results
+                                first-path"
+                                begin   dup>r
+                                        open-path$ place        \ first path
+                                        open-path$ ?+.          \ plus '\'
+                                        open-save$ count
+                                        open-path$ +place       \ append name
+                                        open-path$ count _"open dup   \ open it
+                                        r> and
+                                while   2drop
+                                        next-path"
+                                repeat
+                        then
+                else    open-save$ count 0 min + c@ ':' <>      \ not if first is ':'
+                        open-save$ count 0 min + c@ '$' <> and  \ not if first is '$'
+                        if      current-dir$ count open-path$   place
+                                                   open-path$ ?+.
+                                open-save$   count open-path$  +place
+                        else    open-save$   count open-path$   place
+                        then
+                then    ;               \ return n2=handle, f1=false if found
+
+' n"open is "open       \ link multi-path open word into system
+
+: "path-file    ( a1 n1 -- a2 n2 f1 )   \ find file a1,n1 return full path
+                                        \ a2,n2 and f1=false, succeeded
+                                        \ else return a1,n1 and f1=true, failed
+                2dup "open 0=
+                if      close-file drop
+                        2drop open-path$ count false
+                else    drop true
+                then    ;
+
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\       Fsave stuff
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
+create fsave-buf max-path allot
+
+: "fsave        ( a1 n1 -- )    \ save a Forth executable
+                fsave-buf place
+                fsave-buf count
+                over >r + 0 swap c!
+                32768 here over - r> 1-
+                save-file ;
+
+: fsave         ( -<name>- )
+                bl word count "fsave ;
+: turnkey       ( cfa -<name>- )     \ create application "name" with
+                                        \ n1 bytes of dictionary space available
+                                        \ while running 'cfa' as the program to BOOT
+                is boot                 \ a1 is the CFA of the new version of BOOT
+\                memory-free!
+                fsave  ;
+
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\       display the files loaded into the system
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
+: .loaded       ( -- )
+                cr
+                loadfile @
+                begin   ?dup
+                while   14 ?cr
+                        dup cell+ count "to-pathend"
+                        10 over - spaces
+                        2dup upper type
+                        dup @
+                        if      \ if no code compiled, then discard filename
+                                dup>r @ dup cell+ count + 1+ aligned r> =
+                                if      @
+                                then
+                        else    @
+                        then
+                        start/stop
+                repeat  ;
+
+                                \ a1,n1 name to test for being loaded
+: "loaded?      ( a1 n1 -- f1 ) \ f1 = true if file has been loaded
+                2dup upper 2>r
+                loadfile @      \ top of the file loaded chain
+                begin   ?dup    \ for as long as we aren't at the end
+                while   dup cell+ count "to-pathend" 2r@ compare 0=
+                        if      2r> 2drop       \ if they match,
+                                drop true
+                                exit            \ exit with true on stack
+                        then
+                        dup @
+                        if      \ if no code compiled, then discard filename
+                                dup>r @ dup cell+ count + 1+ aligned r> =
+                                if      @
+                                then
+                        else    @
+                        then
+                repeat  2r> 2drop false ;
+
+: needs         ( -<name>- ) \ conditionally load file "name" if not loaded
+                >in @ >r
+                bl word count "loaded? 0=       \ if we dont have it
+                if      r@ >in !
+                        fload                   \ then loadit
+                then    r>drop ;
+
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\       SHELL support with interpreted string replacement for selected words
+\       %FILENAME  %DIR  %LINE
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
+: execbuf+      ( a1 n1 a2 -- ) \ append to the exec buffer
+                &execbuf 2dup c@ + 255 > abort" Too long for EXEC buffer"
+                +place ;
+
+true value new-prompt?
+
+                                \ Invoke a DOS command string with
+: $EXEC         ( a1 -- f1 )    \ preprocess for file and line parameters
+                                \ f1 = TRUE on error
+                base @ >r decimal
+                &execbuf off                    \ pre-zero the buffer
+                count
+                begin   2dup ascii % scan dup
+                while   2dup 2>r nip - execbuf+ 2r>
+                                over s" %FILENAME" tuck compare 0= >r
+                                over s" %filename" tuck compare 0= r> or
+                        if      new-prompt?
+                           if   &filebuf count "path-file
+                                if      cr ." File doesn't exist, create it? [Y/N] (N):"
+                                        key upc 'Y' <> abort" Aborting"
+                                then    execbuf+
+                           else &filebuf count execbuf+
+                           then
+                                9 /string               \ remove %FILENAME
+                        else
+                                over s" %DIR"      tuck compare 0= >r
+                                over s" %dir"      tuck compare 0= r> or
+                        if      &prognam count 2dup "to-pathend" nip -
+                                execbuf+
+                                4 /string       \ remove %LINE
+                        else
+                                over s" %LINE"     tuck compare 0= >r
+                                over s" %line"     tuck compare 0= r> or
+                        if      &linenum @ 0 <# #s #> execbuf+
+                                5 /string       \ remove %LINE
+                        else
+                                over 1 execbuf+
+                                1 /string       \ remove one % char
+                        then
+                        then
+                        then
+                repeat  nip - execbuf+
+\                cr &execbuf count type
+                &execbuf +NULL
+                &execbuf 1+ zEXEC
+                r> base ! ;
+
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\   primitive utilities to support view, browse and edit of words and files
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
+variable cur-line
+         cur-line off
+
+-1 value loc-file
+
+create loc-buf 260 allot
+
+: read-1line    ( a1 -- len f1 )
+                255 loc-file read-line abort" Read Error" ;
+
+: locate-height ( -- n1 )
+                getcolrow nip 8 - 20 min ;
+
+: locate-header ( -- n1 )
+                locate-height 4 / ;
+
+-1 value orig-loc
+ 0 value loc-line
+
+: $locate       ( line filename | dummy -1 -- )
+                dup 0<
+                if      2drop
+                else    $open abort" Couldn't open source file!"
+                        to loc-file
+                        0 to loc-line
+                        base @ >r decimal
+                        cls ." From file: " cur-file count type
+                        ."  At line: " dup . dup cur-line !
+                        cr horizontal-line
+                        locate-header - 0 max 0
+                        ?do     loc-buf read-1line nip 0= ?leave
+                                1 +to loc-line
+                        loop
+                        locate-height 0
+                        do      loc-buf dup read-1line
+                                if      cols 1- min
+                                        1 +to loc-line
+                                        loc-line orig-loc =
+                                        if      horizontal-line
+                                                type cr
+                                                horizontal-line
+                                        else          type cr
+                                        then
+                                        getxy nip getcolrow nip 4 - >
+                                        ?leave
+                                else    2drop leave
+                                then
+                        loop    horizontal-line
+                        loc-file close-file drop
+                        r> base !
+                then    ;
+
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\       handle error returned by window functions
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
+true value ?win-error-enabled           \ initially errors are enabled
+
+defer win-abort ' abort is win-abort
+comment }
+: ?win-error    ( f1 -- )
+                0=
+                ?win-error-enabled and
+                if      false to ?win-error-enabled
+                        debug-io
+                        cr ." On Function: "
+                        r@ abs>rel 2 cells - @ .name
+                        ."  Windows Returned Error:"
+                        call GetLastError .
+                        win-abort
+                        restore-io
+                then    ;
+}
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\       A utility to allow invoking a DOS shell on a following commandline
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
+: os            ( -<string>- )
+                0 word $exec ;
+comment }
+create temp2$ 260 allot
+
+: copyfile      ( -<from to>- ) \ copy a file to a directory
+                temp$  max-handle erase
+                temp2$ max-handle erase
+                bl word count temp$  place
+                bl word count temp2$ place
+                temp2$ ?+\
+                temp$ count "to-pathend" temp2$ +place
+                cr ." Copying: " temp$  count type
+                cr ."      To: " temp2$ count type
+                false
+                temp2$ 1+ rel>abs
+                temp$  1+ rel>abs
+                Call CopyFile 0=
+                abort" The COPY Failed!" ;
+}
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\       more primitive utilities to support view, browse and edit
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
+                \ a1=cfa, a2=loadfile string
+: $viewinfo     ( a1 -- a1 a2 true | false ) \ find source for a word
+                loadfile @
+                begin   2dup >
+                        if      cell+ true
+                                exit            \ leave loop here
+                        else    @
+                        then    dup 0=
+                until   2drop false ;
+
+: _.viewinfo    ( a1 -- line filename )
+                $viewinfo 0= abort" Undefined word!"
+                ."  loaded from: " over >view @ 0<
+                if      ." CONSOLE" 2drop 0 -1
+                else    base @ >r decimal
+                        dup ?uppercase count type 15 ?cr
+                        ."  at line: "
+                        swap >view @ dup . swap
+                        r> base !
+                        dup count cur-file place
+                then    ;
+
+: .viewinfo     ( -<name>- line filename )
+                bl word anyfind
+                if       _.viewinfo
+                else    c@ abort" Undefined word!"
+                        cur-line @ cur-file
+                then    over to orig-loc ;
+
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\       highlevel words used to view, browse and edit words and file
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
+: locate        ( -<name>- )    \ show some source lines of word
+                .viewinfo $locate ;
+
+: n             ( -- )          \ show the next bunch of lines
+                cur-line @ locate-height 4 - + cur-file $locate ;
+
+: b             ( -- )          \ show the previous bunch of lines
+                cur-line @ locate-height 4 - - 0 max cur-file $locate ;
+
+: linelist      ( n1 -- )
+                cur-file $locate ;
+comment }
+: view          ( -<name>- )    \ VIEW the source for a word
+                .viewinfo $browse ;
+
+synonym v view                  \ V is an synonym for VIEW
+
+: e             ( -<name>- )    \ EDIT the source for a word
+                .viewinfo $edit ;
+
+synonym ed e                    \ E is a synonym for EDIT
+
+: edit          ( -<filename>- ) \ EDIT a particular file
+                0 word c@
+                if      cur-line off
+                        0 pocket
+                else    cur-line @ cur-file
+                then    $edit ;
+
+synonym z edit                  \ Z is a synonym for EDIT
+}
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\       Utility to allow loading a file starting at a specified line number
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
+: #fload        ( n1 -<name>- )         \ load file "name" from line n1, 1 based
+                start-line !                    \ set start line
+                bl word $fload ;                \ do the load
+
+: lineload      ( n1 -- )               \ load the current file from line n1
+                start-line !
+                cur-file $fload ;
+comment }
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\       Linkage to automatically invoke the editor on a compile error
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
+: _edit-error   ( -- )
+                loadline @ loadfile @ cell+ $edit ;
+
+: autoediton    ( -- )  \ link into defered auto edit on error word
+                ['] _edit-error is edit-error ;
+
+autoediton
+}
+: autoeditoff   ( -- )  \ disable automatic edit on error
+                ['] noop is edit-error ;
+autoeditoff
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\       Display the amount of used and available program memory
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
+: .free         ( -- )
+                base @ decimal
+                cr ." Image address:   "     32768           h.8  ." h"
+                cr ."   bytes Total: " memory-total      10 u,.r
+                cr ."          Used: " here  32768 -     10 u,.r
+\                cr ."          Free: " memory-free       10 u,.r
+                cr ."        Malloc: " tot-malloc        10 u,.r
+                base ! ;
+
+synonym .mem .free
+
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\       Compiler utilities
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
+: anew          ( -<name>- )    \ define a new marker
+                >in @ defined nip swap >in !
+                if      ' execute
+                else    mark
+                then    ;
+
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\       A simple error number extention to error handling
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
+: ?error        ( f1 n1 -- )    \ abort with error code n1 if f1=true
+                swap
+                if      throw
+                else    drop
+                then    ;
+
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\       ANSI Save and Restore Input Functions
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
+: save-input    ( -- xxx 7 )
+                loadfile @ cell+
+                ?loading @
+                loadline @
+                >in @
+                source-id
+                (source) 2@
+                7 ;
+
+: restore-input ( xxx 7 -- )
+                drop
+                (source) 2!
+                to source-id
+                >in !
+                loadline !
+                ?loading !
+                align linkfile ;
+
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\       Compile time stack depth checking
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
+synonym checkstack nostack1
+
+: nostack       ( -- )
+                -1 to olddepth ;
+
+: stack-empty?  ( -- )
+                depth abort" The stack should have been empty here!" ;
+
+: _stack-check  ( -- )
+                ?loading @ 0=           \ if we are not loading
+                state @ or              \ or we are in compile state,
+                                        \ then don't check stack depth change
+                olddepth 0< or ?exit    \ or is olddepth is below zero
+                context @ [ ' assembler vcfa>voc ] literal = ?exit
+                depth olddepth >
+                if      cr ." Stack depth increased in file: "
+                        loadfile @ cell+ count type
+                        ."  at line: " base @ decimal loadline @ . base !
+                        ." Stack: " .s cr
+                then    depth to olddepth ;
+
+nostack ' _stack-check is stack-check
+
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\       A word to allow accessing a word from the Forth vocabulary
+\       without changing the vocabulary search order
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
+: f:            ( -<name>- )    \ define a word in the FORTH vocabulary
+                current @ >r                    \ save CURRENT
+                ['] forth vcfa>voc current !       \ set to FORTH
+                header                          \ make a header
+                r> current !                    \ restore current
+                !csp compile docol ] ;          \ switch to compiling
+
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\       Time control words
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
+create TIME-BUF 5 allot  5 constant time-len
+\ here            nostack1
+\         0 c,    \ +0  year
+\         0 c,    \ +1  month
+\         0 c,    \ +2  day of month
+\         0 c,    \ +3  day of week
+\         0 c,    \ +4  hour
+\         0 c,    \ +5  minute
+\         0 c,    \ +6  second
+\ here swap - constant TIME-LEN
+
+create date$        32 allot
+create time$        32 allot
+create date-format$ 24 allot   s" %w3, %mn/%dy/%ce%yr%0" date-format$ place
+  0 date-format$ count + c!
+create time-format$ 20 allot   s" %24:%mi:%se%0"         time-format$ place
+  0 time-format$ count + c!
+
+code OS_Word ( block nr -- block )
+  mov r0, tos
+  ldmfd sp !, { r1 }
+  swi " OS_Word"
+  mov tos, r1
+next c;
+
+code OS_ConvertDateAndTime ( format size buf timestruc -- free end begin )
+  mov r0, tos
+  ldmfd sp !, { r1, r2, r3 }
+  swi " OS_ConvertDateAndTime"
+  mov tos, r0
+  stmfd sp !, { r1, r2 }
+next c;
+
+: get-local-time ( -- )         \ get the local computer date and time
+        time-buf 3 over c! 14 OS_Word drop ;
+
+create compile-version time-len allot   \ a place to save the compile time
+get-local-time                          \ save as part of compiled image
+time-buf compile-version time-len move  \ move time into buffer
+
+create d/m 31 c, 28 c, 31 c, 30 c, 31 c, 30 c,
+           31 c, 31 c, 30 c, 31 c, 30 c, 31 c,
+
+: time&date     ( -- sec min hour day month year )
+    get-local-time
+    time-buf @ time-buf cell+ c@
+    360000 um/mod swap 100 / 60 /mod rot
+    24 /mod dup 58 > -
+    [ 365 4 * 1+ ] literal /mod 4 * 1900 + >r
+    dup 59 =
+    if drop 29 2 0 else
+      dup 59 > + 365 /mod >r
+      d/m 12 bounds
+      do i c@ - dup 0< if i c@ + 1+ i [ d/m 1- ] literal - leave then loop
+    r> then
+    r> + ;
+
+: .#"           ( n1 n2 -- a1 n3 )
+                >r 0 <# r> 0 ?do # loop #> ;
+
+: >date"        ( time_structure -- ad n )
+                >r date-format$ 1+
+                31 date$ 1+
+                r> OS_ConvertDateAndTime
+                - 1- date$ c! drop
+                date$ count ;
+
+: >time"        ( time_structure -- ad n )
+                >r time-format$ 1+
+                31 time$ 1+
+                r> OS_ConvertDateAndTime
+                - 1- time$ c! drop
+                time$ count ;
+
+: .date         ( -- )
+                get-local-time time-buf >date" type ;
+
+: .time         ( -- )
+                get-local-time time-buf >time" type ;
+
+: .cversion     ( -- )
+                cr ." Compiled: "
+                compile-version dup >date" type space >time" type ;
+
+: ms@           ( -- ms )
+                get-local-time
+                time-buf @ 10 * ;
+
+0 value start-time
+
+: TIME-RESET
+    time-buf 5 erase
+    time-buf 2 OS_Word drop ;  \ RESET TIMER
+
+: TIME-ELAPSED  ( -- d )
+    time-buf 1 OS_Word dup @ swap cell+ c@ ;
+
+: .ELAPSED
+    CR ." Elapsed time   =  "
+    TIME-ELAPSED 100 um/mod
+    60 /mod 60 /mod ( 100s s m h )
+    ?dup  if 2 .#" type ." :" then
+    2 .#" type ." :"
+    2 .#" type ." ."
+    3 .#" type ;
+
+comment }
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\      Delay Time Words
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
+: MS            ( n1 -- )       \ delay n1 milli-seconds
+                Win32s?         \ if Win32s then don't use "Sleep", it doesn't work
+                if      ms@ + 15000 0                   \ max delay ~15 seconds
+                        do      dup ms@ u< ?leave       \ check for all done
+                                50 0                    \ just a small pause
+                                do      ekey? drop      \ to let OS have time
+                                loop
+                        loop    drop
+                else    Call Sleep drop
+                then    ;
+
+: SECONDS       ( n1 -- )
+                0max 0
+                ?do     1000 ms
+                        start/stop
+                loop    ;
+
+: pause-seconds ( n1 -- )
+                cr ." Delaying: " dup . ." seconds, press a key to HOLD "
+                30 min 1 max 10 * 0
+                ?do     100 ms
+                        key?
+                        if
+        cr ." HOLDING,  Space=continue delaying, Enter=cancel pause, ESC=abort"
+                                key  dup 27 =
+                                if      cr ." Aborted" abort
+                                then 13 = ?leave
+                                key  dup 27 =
+                                if      cr ." Aborted" abort
+                                then 13 = ?leave
+                                cr ." Press a key to pause "
+                        then
+                loop    ;
+
+synonym ?keypause  start/stop           \ from F-PC, pauses if a key is pressed
+}
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\       Utility to type a file to the console
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
+: ftype         ( -<name>- )            \ type file "name" to the console
+                bl word $open abort" Couldn't open file!"
+                to loc-file
+                0 to loc-line
+                cur-line off
+                >bold cr ." Typing file: " open-path$ count type cr
+                begin   loc-buf dup read-1line
+                while   type cr
+\                        10 ms
+                        start/stop
+                repeat  2drop
+                loc-file close-file drop ;
+
+\ synonym flist ftype
+
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\       An addition to CASE OF ENDOF ENDCASE, to allow testing ranges
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
+: _of-range     ( n1 n2 n3 -- n1 f1 )
+                2 pick -rot between ;
+
+: of-range      ( n1 n2 n3 -- n1 )      \ extention to CASE for a range
+                ?comp compile _of-range compile ?branch >mark 4 ; immediate
+comment }
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+\       mouse typing
+\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
+
+: mxy>cxy       ( x y -- cx cy ) \ convert from mouse xy to character xy
+                charwh rot 2>r / 2r> swap / ;
+
+: char@screen   ( x y -- c1 )
+                getmaxcolrow drop * + &the-screen + c@ ;
+
+: word@mouse"   ( -- a1 n1 )
+                &the-screen
+                mousex mousey mxy>cxy getrowoff + getmaxcolrow drop * +
+                2dup + c@ bl <>
+        if      0 over
+                ?do     over i + c@ bl =
+                        if      drop i leave    \ found blank, leave loop
+                        then
+             -1 +loop                           \ a1=screen, n1=offset to blank
+                getmaxcolrow * swap /string     \ -- a1,n1 of remaining screen
+                bl skip                         \ remove leading blanks
+                2dup bl scan nip -              \ return addr and length
+        else    + 0
+        then    ;
+
+
+: word@mouse>keyboard ( -- )            \ send word at mouse to keyboard
+                mouseflags double_mask and 0= ?exit \ double clicked mouse
+                word@mouse" ?dup
+                if      "pushkeys
+                        bl pushkey    \ push a space
+                else    drop
+                then    ;
+
+mouse-chain chain-add word@mouse>keyboard
+
+: line@mouse"   ( -- a1 n1 )
+                &the-screen
+                mousex mousey mxy>cxy getrowoff + swap >r   \ save x for later
+                getmaxcolrow drop swap * + r>   \ -- a1,n1 the line upto mouse
+                -trailing ;                     \ remove trailing blanks
+
+
+: line@mouse>keyboard ( -- )            \ send the line at mouse to keyboard
+                mouseflags 0x09 <> ?exit \ ctrl-left mouse button down
+                                                \ along with the control key
+                line@mouse" ?dup
+                if      "pushkeys
+                        0x0D pushkey    \ automatically press Enter
+                else    drop
+                then    ;
+
+mouse-chain chain-add line@mouse>keyboard
+
+(( MOUSEFLAGS info:
+
+        3               both  buttons, currently assigned to abort
+
+        1               left  button
+        9 control       left  button
+       13 control shift left  mouse button
+        5         shift left  mouse button
+
+        2               right button
+       14 control shift right mouse button
+       10 control       right mouse button
+        6         shift right mouse button
+
+))
+}
+: exit_stuff    ( -- )                  \ windows callback for cleanup
+                bye-chain do-chain ;
+
+\ ' exit_stuff forthproc 3 cells+ !       \ install into windows callback
+
+
+: comment:      ( -<comment;>- )        \ all that follows is a comment
+                                        \ till COMMENT; is encountered
+                begin   bl word ?uppercase
+                        dup count s" COMMENT;" compare
+                while   c@ 0=
+                        if      refill 0=
+                                abort" missing COMMENT;"
+                        then
+                repeat  drop ; immediate
+
+: 2literal      ( d1 -- )
+                swap compile lit , compile lit , ; immediate
+
+: sliteral      ( a1 n1 -- )
+                compile (s")
+                here >r dup c, dup allot r@ 1+ swap move
+                0 c, align r> count \n->crlf ; immediate
+
+only forth also definitions
+
+

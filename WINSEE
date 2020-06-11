@@ -1,0 +1,57 @@
+\ Decompile into a window
+
+:class see-window <super text-window <classpointer
+int tosee
+:m ClassInit: { cfa \ $title -- }
+     30 LocalAlloc: $title
+     cfa to tosee
+     s" See: " $title place
+     cfa >name nfa-count $title +place
+     $title 50 0 ClassInit: super ;m
+:m On_Init:    ( -- )
+     1 to rows 0 to xcur 0 to ycur
+     here 5000 + to &thescreen
+     &thescreen cols blank
+     outwindow >r  self to outwindow
+     tosee (see) r> to outwindow
+     &thescreen rows cols * dup>r
+     allocate abort" Not enough Heap!"
+     dup to &thescreen r> 2dup + to &endscreen move
+     cols 16* rows 1+ 5 lshift 2dup
+     SetSize SetWaSize ;m
+:m PutText:   ( ad n -- )
+     dup>r &thescreen ycur cols * xcur + + swap move
+     r> +to xcur ;m
+:m PutCR:     ( -- )
+     &thescreen rows cols * + cols blank
+     rows to ycur
+     1 +to rows 0 to xcur ;m
+;class
+
+also classes
+: wsee ( -<name>- ptr )
+    ' heap> see-window ;
+previous
+
+\   Usage:
+
+ wsee .s value sp
+
+popup spo "See"
+  menuitem "Believe" beep ;
+  menuseparator
+  menuitem "Quit" Stop: sp ; 
+spo &Popup: sp !
+
+\ 400 400 start: sp
+
+also classes
+
+wsee heap> value hp
+\ 400 400 start: hp
+
+: .w
+    windows-link
+    begin ?dup
+    while cr dup h. dup cell+ @ dup h. Print: [[ ]] @
+    repeat ;

@@ -1,0 +1,18 @@
+\ Risc OS Colours
+cr .( Loading named colours support ...)
+ 0 constant  White
+ 1 constant  Gray1
+ 2 constant  Gray2
+ 3 constant  Gray3
+ 4 constant  Gray4
+ 5 constant  Gray5
+ 6 constant  Gray6
+ 7 constant  Black
+ 8 constant  Blue
+ 9 constant  Yellow
+10 constant  Green
+11 constant  Red
+12 constant  Cream
+13 constant  DarkGreen
+14 constant  Orange
+15 constant  LightBlue

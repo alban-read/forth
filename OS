@@ -1,0 +1,97 @@
+\ os classes for console only.
+
+cr .( Loading OS support...)
+
+
+
+code _OS_Byte_0_2
+ mov r0, tos
+ swi " OS_Byte"
+ stmfd sp !, { r2 }
+ mov tos, r1
+next c;
+
+code _OS_Byte_2_0
+
+
+
+: _textxy
+  134 _OS_Byte_0_2 ;
+
+' _textxy is getxy
+
+
+
+
+code vsync
+  mov r0, # 19
+  swi " OS_Byte"
+next c;
+
+
+code OS_Plot ( y x type -- )
+  mov r0, tos
+  ldmfd sp !, { r1, r2, tos }
+  swi " OS_Plot"
+next c;
+
+code OS_Plot_xy ( x y type -- )
+
+ mov r0, tos
+ ldmfd sp !, { r1, tos }
+ stmfd sp !, { r0, r1 }
+
+ ldr r0, [ sp ]
+ str tos, [ sp ]
+ mov tos, r0
+
+ mov r0, tos
+ ldmfd sp !, { r2, r1, tos }
+ swi " OS_Plot"
+
+next c;
+
+
+
+
+: clg 16 emit ;
+
+: gcol 18 emit 0 emit emit ;
+
+: colour 17 emit emit ;
+
+: bcolour 17 emit  128 + emit ;
+
+: bcol 18 emit 0 emit 128 + emit ;
+
+: line ( x1 y1 x2 y2 )
+   4 os_plot_xy  5 os_plot_xy ;
+
+: triangle
+   4 os_plot_xy  4 os_plot_xy  85 os_plot_xy ;
+
+: fillrect ( x y x1 y1 -- )
+   4 os_plot_xy  101 os_plot_xy ;
+
+: square ( x y w -- )
+  >r  2dup r> tuck + >r + r>
+  fillrect ;
+
+
+
+
+code -32* ( n -- n' )
+  mov tos, tos, lsl # 5
+  rsb tos, tos, # 0
+next c;
+
+
+: exit-stuff ( -- )
+    bye-chain do-chain 0 &58454241 0 os_exit ;
+
+' exit-stuff is bye
+
+: .leaving
+    ." Leaving..." cr ;
+
+bye-chain chain-add .leaving

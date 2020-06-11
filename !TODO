@@ -1,0 +1,9 @@
+Things to do:
+  * respond to scroll request from the wimp
+  * handle caret correctly
+  * accelerate some code (I feel that the string
+      routines in the kernel deserve recoding)
+
+Perhaps somebody can come up with some proposals
+concerning the points above or some other
+improvement of the system.

@@ -1,0 +1,55 @@
+\ extend the kernel for the console FCONS
+\
+
+fload primutil        \ primitive utilities
+fload dump
+fload forget
+fload dthread
+
+2 to #threads           \ default number of dictionary threads
+
+fload order
+fload assert
+fload primhash        \ primitive hash functions for OOP later
+fload see
+fload interpif        \ interpretive conditionals
+fload debug
+fload build           \ experimental version of BUILD DO: defining wordset
+fload words
+fload pasm
+fload disarm
+fload utils           \ load other misc utility words
+fload args
+fload OS
+
+mark empty
+
+here fence !
+
+\ cur-file off            \ clear the default file
+\ cur-line off            \ clear the current line
+
+cr cr .( Extensions Loaded, ) count-words . .( words in dictionary) cr
+
+\ ****************************
+\ do something at boot time
+
+create hello$ 0 c, 260 allot
+
+: hello+"       ( -<text">- )                   \ append to hello string
+                '"' word count hello$ +place ;
+
+hello+" Forth for Risc OS"
+
+              : hello         ( -- )            \ startup stuff
+                ?loading off                    \ we aren't loading initially
+                only forth also definitions
+                decimal
+                0 to source-id                  \ not loading from a file yet
+                initialization-chain do-chain
+                cls     hello$ count type
+                cr .words ." words in the dictionary" ;
+
+               ' hello is boot
+
+fsave FCONS

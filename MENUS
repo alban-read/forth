@@ -1,0 +1,196 @@
+\ Wimp Popup Menus
+cr .( Loading generic wimp menus support...)
+
+comment:
+   This file contains the code for defining a menu structure as it is
+   done in "extend" and "winsee".
+   During creation POPUP will be informed about the different MENUITEMS
+   which will be linked into a list using the messages SetNext: and
+   LastEntry: . When a menu button is pressed on the application
+   window or iconbar icon the POPUP is sent a Start: message.
+   The POPUP in return will do its preaction if it has one,
+   Build: itself and then call Wimp_CreateMenu.
+   The building action consists of constructing the menu structure
+   and sending a Build: message to the list of MENUITEMS. They in
+   turn will append their structure to the menu structure and return.
+   Some extra handling is involved with SUBMENU and SUBWINDOW,
+   see the Build: method for class MENUITEM.
+   The use of PreMenu: is shown in "extend".
+comment;
+
+0 value BuildMenu
+0 value &menuworkspace
+
+code Wimp_GetPointerInfo
+  mov r1, tos
+  swi " Wimp_GetPointerInfo"
+  ldmfd sp !, { tos }
+next c;
+
+:class PopUp <super object <classpointer
+int first
+int last
+int title
+int colour
+int preaction
+:m FirstEntry: ( -- n )
+     first ;m
+:m LastEntry: ( -- n )
+     first if last else self then ;m
+:m SetNext:  ( n -- )
+     first 0= if dup to first then
+     to last ;m
+:m SetWAColour:  ( fg bg -- )
+     8 lshift + 16 lshift colour &ffff and or to colour ;m
+:m SetTiColour:  ( fg bg -- )
+     8 lshift + colour &ffff0000 and or to colour ;m
+:m ClassInit:  ( -- )
+     self to BuildMenu
+     0 to first  0 to last
+     0 to title  0 to preaction
+     Black Gray2 SetTiColour: self
+     Black White SetWaColour: self
+     here ,"text" to title ;m
+:m Build:     ( ad -- ad' )
+     >r title count r@ 8 + ! r@ cell+ off r@ !
+     IF_IndData OrMFlags: first
+     colour r@ 12 + !
+     0 r@ 24 + !
+     title c@
+     r@ 28 + Build: first
+     swap 1+ 4 lshift r@ 16 + !  44 r> 20 + !  ;m
+: OpenMenu
+     preaction if preaction execute then
+     &menuworkspace Build: self drop
+     &menuworkspace 2 cells- 2@
+     &menuworkspace Wimp_CreateMenu
+     &menuworkspace 28 - off ;
+:m Start:     ( x y -- )
+     here 7000 + aligned to &menuworkspace
+     dup 0<
+     if negate +height: first then
+     swap &menuworkspace 2 cells- 2!
+     OpenMenu ;m
+:m Execute:   ( block -- )
+     &menuworkspace 28 - @ 0=
+     if &menuworkspace 28 - dup Wimp_GetPointerInfo
+       8 + c@ 1 and >r
+     else false >r then
+     lcount Execute: first
+     r> if OpenMenu then ;m
+:m SetPreaction: ( cfa -- )
+     to preaction ;m
+;class
+
+: PreMenu:
+    align here SetPreaction: BuildMenu
+    docol call, !csp ] ;
+
+:class menuitems <super object <classpointer
+int next
+:m ClassInit: ( -- )
+     LastEntry: BuildMenu dup to next
+     self SetNext: next drop
+     0 to next ;m
+:m +Height:    ( n -- n' )
+     44 + next if +Height: next then ;m
+:m SetNext:    ( n -- )
+     dup to next
+     SetNext: BuildMenu ;m
+:m Execute: ( block nr -- )
+     next if Execute: next else 2drop then ;m
+;class
+
+|class menuitem <super menuitems
+int mytext
+int mflags
+int iflags
+int ?submenu
+:m ClassInit: ( -- )
+     here ,"text" to mytext
+     ClassInit: super
+     0 to mflags
+     -1 to ?submenu
+     [ IF_Text IF_FilledBG or IF_IndData or &07000000 or ] literal
+     to iflags
+     docol call, !csp ] ;m
+:m OrMFlags:  ( n -- )
+     mflags or to mflags ;m
+:m HaveSub:   ( n -- )
+     to ?submenu ;m
+:m Build:     ( mw ad -- mw' ad' )
+     swap mytext c@ max swap
+     mflags   over !  cell+
+     ?submenu &8000 here between if tuck then
+     ?submenu over !  cell+
+     iflags   over !  cell+
+     >r mytext count r@ 8 + ! r@ cell+ off r@ !
+     r> 12 +
+     next
+     if Build: next
+     else mflags &80 or over 24 - !
+     then
+     ?submenu &8000 here between if Build: ?submenu then ;m
+: doit ( block -- ) drop mytext count + 1+ aligned execute ;
+:m Execute: ( block nr -- )
+     ?dup if 1- Execute: next
+     else ?submenu 1+
+       if   dup @ 1+ if Execute: ?submenu else drop then
+       else doit
+       then
+     then ;m
+:m Check: ( f -- )
+     0<> negate mflags &fffffffe and or to mflags ;m
+:m Checked?: ( -- f )
+     mflags 1 and 0<> ;m
+:m Enable: ( f -- )
+     0= &400000 and iflags &ffdfffff and or to iflags ;m
+;class
+
+:class :menuitem <super menuitem
+:m ClassInit:
+     ClassInit: super
+     hide ;m
+;class
+
+|class submenu <super popup <classpointer
+menuitem parentline
+int ParentMenu
+:m ClassInit: ( -- ) postpone [
+     BuildMenu to ParentMenu
+     self HaveSub: parentline
+     ClassInit: Super
+     self to BuildMenu ;m
+:m SetNext:    ( n -- )
+     self BuildMenu =
+     if SetNext: super
+     else SetNext: parentline then ;m
+:m Unsubmenu: ( -- )
+     ParentMenu to BuildMenu ;m
+:m Build:     ( ad1 mw ad2 -- mw ad' )
+     dup>r rot ! r>
+     Build: super ;m
+;class
+
+: endsubmenu ( -- )
+    Unsubmenu: BuildMenu ;
+
+|class subwindow <super menuitem
+:m ClassInit:  ( -- )
+     ClassInit: super
+     postpone ;
+     ' execute to ?submenu ;m
+:m Build:      ( ad -- ad' )
+     ?submenu >r
+     0 0 Create: ?submenu GetHandle: ?submenu to ?submenu
+     Build: super
+     r> to ?submenu ;m
+;class
+
+|class menuseparator <super menuitems
+:m Build:     ( ad -- ad' )
+     2 over 24 - dup>r c@ or r> c!
+     next if Build: next then ;m
+:m +Height:   ( n -- n' )
+     +Height: super 18 - ;m
+;class

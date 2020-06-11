@@ -1,0 +1,744 @@
+\ $Id: class.f 1.1 1994/04/01 07:52:15 andrew Exp $
+
+comment:
+   This file introduces object orientation to WimpForth.
+   You declare a new class by
+     :class newcl <super parent
+         ...
+     ;class
+   where parent is an existing class (only one!!)
+   In between you define instance variables
+       int flag
+   and methods
+       :m SetFlag:  ( f -- ) to flag ;m
+   Available are all methods and instance variable of the parent class.
+   Until now this is like a type declaration. You define an object of
+   this class like that:
+      newcl newobj
+   newobj is now ready to receive messages: (=invocation of the methods)
+      0 SetFlag: newobj
+   The first message (ClassInit:) was automatically sent to it when
+   newobj was created 2 lines before. (This is part of the system!)
+   There are more aspects of the problem. Extensive use of classes
+   is made in the Wimp interface of WimpForth. Please have a look
+   at the files "icons", "windows", "menus", "controls" and for
+   defining objects at the file "extend".
+comment;
+
+only forth also definitions
+
+0 Value  NewObject           \ Newest object being created
+
+locals-on
+
+\ : h.   ( u -- )               base @ hex  swap u.  base ! ;
+: @word  ( -<word>- addr )      bl word dup count upper ;
+: hash>  ( -<word>- )           @word count hash ;
+
+classes also definitions
+
+\ -------------------- Selectors --------------------
+
+: ?is.Sel       ( addr -- addr f ) \ true if word at Here is a selector object.method
+                dup count dup>r ':' scan 0>             \ found it and
+                nip r> 3 > and ;                        \ longer than 3
+
+: ?isSel  dup dup c@ +  c@ ascii :  =  ;
+
+: >selector  ( str -- SelID )   \ get a selector from the input stream
+        ?isSel 0= abort" not a selector" count hash ;
+
+: getSelect  ( -- SelID )   \ get a selector from the input stream
+        @word >selector ;
+
+
+\ -------------------- Class Structure --------------------
+
+0 value ^Class          \ pointer to class being defined
+
+\ references are from class pfa
+
+: MFA    [ voc-pfa-size 0 cells+ ] literal + ;  \ method dictionary
+: IFA    [ voc-pfa-size 1 cells+ ] literal + ;  \ instance variable dictionary
+: DFA    [ voc-pfa-size 2 cells+ ] literal + ;  \ data area
+: XFA    [ voc-pfa-size 3 cells+ ] literal + ;  \ width of indexed items
+: SFA    [ voc-pfa-size 4 cells+ ] literal + ;  \ pointer to superclass
+: FLAGS  [ voc-pfa-size 5 cells+ ] literal + ;  \ flags
+
+voc-pfa-size 6 cells+ constant class-size       \ size of class pfa
+
+
+: >obj  ( objCfa -- ^obj )   >body cell+ ;
+
+: >class  ( ^obj -- ^class )  CELL - @ ;
+
+: classpointer?  ( class -- f )  FLAGS @ 1 AND ;
+
+: class-allot  ( n -- )  ^class DFA +! ;
+
+
+\ -------------------- Find Methods --------------------
+
+: (FINDM)   ( SelID ^class -- m0cfa )   \ find method in a class
+        2dup
+        MFA ((findm)) if  nip nip exit  then
+\        over 0 <# #s #> temp$ place
+\        s"  " temp$ +place
+        swap unhash temp$ place
+        S"  not understood by class " temp$ +place
+        body> >name nfa-count temp$ +place
+        temp$ msg !  -2 throw ;
+
+create null-obj-buf 260 allot
+
+: FIND-METHOD   ( SelID ^obj -- ^obj m0cfa )   \ find method in object
+                ?dup 0= abort" Null Object"
+                tuck >class (findm) ;
+
+: (Defer)  ( ^obj -- )   \ look up SelID at IP and run the method
+        @(ip) swap  ( SelID ^obj )
+        Find-Method execute ;
+
+: dbg-next-cell-class ( ip cfa -- ip' cfa )
+        dup ['] (Defer) =
+        if      swap cell+ swap
+        then    ;
+
+dbg-next-cell chain-add dbg-next-cell-class \ link into the debugger
+
+: dbg-nest-class ( top-of-user-stack cfa flag -- cfa false | true )
+        dup ?exit                       \ leave if already found
+        over ['] (Defer) =
+        if      2drop cr .s
+\ !!! USES A COPY OF THE ADDRESS ON TOP OF THE STACK TO LOCATE THE METHOD !!!
+        [ bug ] ip @ cell+ @ over Find-Method nip 3 cells+ ip !
+                2 nesting +!
+                true
+        then    ;
+
+classes
+
+dbg-nest-chain chain-add dbg-nest-class
+
+: .word-type-class      ( cfa flag -- cfa false | true )
+        dup ?exit
+        over ['] (Defer) =
+        if      2drop
+                ." Late: "
+                true
+        then    ;
+
+.word-type-chain chain-add .word-type-class
+
+: .execution-class-class ( ip cfa flag -- ip' cfa flag )
+                dup ?exit                       \ leave if non-zero flag
+                over ['] (Defer) =              \ is it a late bound method
+                if      drop                    \ discard original flag
+                        ." [[ " swap cell+
+                        dup @ unhash type
+                        cell+ swap ."  ]] "
+                        true                    \ return true if we handled it
+                then    ;
+
+.execution-class-chain chain-add .execution-class-class
+
+   0 Value  ^Self
+   0 Value  ^Super              \ nfa of SUPER pseudo-Ivar
+   1 Value  rangeCheck          \ true if runtime range check desired
+
+' find      @ constant doDefer  \ Defer cfa
+
+: ?isClass  ( cfa -- f )  call@ dup   doCLass =
+                            swap do|Class = or ;
+: ?isObj    ( cfa -- f )  call@ doObj = ;
+: ?isValue  ( cfa -- f )  call@ doValue = ;
+: ?isVect   ( cfa -- f )  call@ dup doValue =
+                           over doDefer = or
+                           swap (iv@) = or ;
+
+: ?isParen  ( cfa -- f )  >name nfa-count drop c@ ascii [ = ;
+
+\ ERROR if not compiling a new class definition
+: ?Class   ^class   0= abort" Not in a class" ;
+
+\ Determine if next word is an instance var.
+\ Return pointer to class field in ivar structure.
+: vFind  ( str -- str f OR ^iclass t )
+        ^class
+        IF      dup count hash ^class IFA ((findm))
+                dup if  rot drop  then
+        ELSE    0
+        THEN ;
+
+: IDX-HDR   ( #elems ^class  OR ^class -- indlen )
+        XFA @ DUP IF  2DUP ( width ) W, ( #elems ) W,  *  THEN ;
+
+
+\ -------------------- Initialize Instance Variables --------------------
+((
+Instance variable consists of four 4-byte fields.  A fifth field is
+used for indexed ivars only.
+
+    Offset   Name      Description
+    ------   ----      ---------------------------------------
+       0 0   link      points to link of next ivar in chain
+       4 1   name      32-bit hash value of name
+       8 2   class     pointer to class pfa
+      12 3   offset    offset in object to start of ivar data
+      16 4   #elem     number of elemens (indexed ivars only)
+
+In the stack diagrams, "ivar" refers to the starting address of this
+structure.  The IFA field of a class points to the first ivar.
+))
+
+: iclass     ( ivar -- 'class )   2 cells + ;
+
+: @IvarOffs  ( ivar -- offset )   3 cells + @ ;
+
+: @IvarElems ( ivar -- #elems )   4 cells + @ ;
+
+
+\ send ClassInit: message to ivar on stack
+: InitIvar  ( ivar offset -- )
+        over @IvarOffs + newObject +   ( ivar addr )
+        [ getSelect ClassInit: ] literal
+        rot iclass @ (findm) execute ;
+
+
+\ ITRAV traverses the tree of nested ivar definitions in a class,
+\ building necessary indexed area headers.
+: ITRAV   { ivar offset -- }
+        Begin
+                ivar ^Self <>
+        While
+                ivar iclass @ IFA @
+                ivar @IVarOffs offset + RECURSE
+
+                ivar iclass @ ?dup  ( Why would an Ivar have no class ?? )
+                if      dup classpointer?
+                        if      newObject offset + ivar @IvarOffs +
+                                ( ^class ivarAddr )
+                                2dup cell - !           \ store class pointer
+                                over XFA @
+                                if  over DFA @ +        \ addr of indexed area
+                                    swap XFA @ over W!  \ Index width
+                                    ivar @IvarElems swap 2 + w! \ #elems
+                                else 2drop
+                                then
+                        else drop
+                        then
+                        ivar offset initIvar    \ send ClassInit:
+                then
+
+                ivar @ to ivar  \ next ivar in chain
+        Repeat ;
+
+
+defer ClassInit  ( -- )  \ send ClassInit: to newObject
+' noop is classinit
+
+\ ( #elems ^class OR ^class -- ) Compile an instance variable dictionary entry
+: <VAR
+        @word Vfind abort" Duplicate Instance Variable"
+
+        dup count 2dup hash add-hash
+
+        ^Class IFA link,                \ link
+        count hash ,                            \ name hash
+        dup ,                           \ class
+        dup ClassPointer?
+        if  4 class-allot  then         \ if indexed, save 4 for class ptr
+        ^class DFA @ ,                  \ offset
+        dup XFA @ dup
+        if  rot dup ,  * 4 +  then      \ #elems
+        swap DFA @ +                    \ Account for named ivar lengths
+        class-allot ;
+
+: (|Build)   ( #elems ^class OR ^class -- )  \ Build an instance of a class
+        ^class
+        IF      <Var    \ build an ivar
+        ELSE    doObj call,         \ cfa
+                dup ,           \ class
+                here to newObject
+                dup DFA @ reserve       \ allot space for ivars
+                dup IDX-HDR reserve     \ allot space for indexed data
+                IFA @ 0 ITRAV           \ init instance variables
+                ClassInit               \ send CLASSINIT: message
+        THEN ;
+
+: (Build)   ( #elems ^class OR ^class -- )  \ Build an instance of a class
+        ^class
+        IF      <Var    \ build an ivar
+        ELSE
+                >in @
+                @word (find)
+                if      dup ?isValue
+                        if      \ create headerless object and store
+                                \ address in a value
+                                here >obj  swap cell+ ( 1cfa ) execute
+                                drop ( >in )
+                        else
+                                \ redefinition
+                                drop >in ! header
+\                               cr last @ .id ."  is redefined "
+                        then
+                else
+                        \ new object
+                        drop >in ! header
+                then
+
+                doObj call,         \ cfa
+                dup ,           \ class
+                here to newObject
+                dup DFA @ reserve       \ allot space for ivars
+                dup IDX-HDR reserve     \ allot space for indexed data
+                IFA @ 0 ITRAV           \ init instance variables
+                ClassInit               \ send CLASSINIT: message
+        THEN ;
+
+create obj-buf 260 allot
+
+: (Obj-Build)   ( #elems ^class OR ^class -- )  \ Build an instance of a class
+                obj-buf count upper (find)
+                if      dup ?isValue
+                        if      \ create headerless object and store
+                                \ address in a value
+                                here >obj  swap cell+ ( 1cfa ) execute
+                        else
+                                \ redefinition
+                                obj-buf count "header
+                        then
+                else
+                        \ new object
+                        obj-buf count "header
+                then
+                doObj call,         \ cfa
+                dup ,           \ class
+                here to newObject
+                dup DFA @ reserve       \ allot space for ivars
+                dup IDX-HDR reserve     \ allot space for indexed data
+                IFA @ 0 ITRAV           \ init instance variables
+                ClassInit               \ send CLASSINIT: message
+                ;
+
+\ -------------------- Heap Objects --------------------
+
+\ build a new object on the heap for class. Use: Heap> className
+\ gets heap, and returns ptr.
+
+: (heapObj)  { theClass \ dLen obAddr idWid #els -- } 0 to #els
+        theClass dfa @ to dlen  theClass XFA @ to idWid
+        idWid  IF to #els THEN
+        dLen cell+ idWid IF  idWid #els * cell+ + THEN  \ get total length of obj
+        allocate abort" Out of Memory"
+        theClass over !  \ create the class ptr
+        cell+ to obAddr    \ get nonReloc heap, save ptr to cfa
+        idWid  IF  obAddr dLen + idWid over w!  2 + #els swap w! THEN
+        obAddr to newObject  theClass IFA @  0 Itrav
+        classinit  obAddr  ;
+
+: heap>   ( -- addr )
+        '  dup ?isClass not abort" Use: heap> classname "   >body
+        state @
+        IF   [compile] literal
+                Compile (heapObj)  ELSE  (heapObj)
+        THEN
+        ; Immediate
+
+
+\ --------------- Build SUPER and SELF pseudo ivars ---------------
+
+S" SUPER" hash> SUPER add-hash
+
+Here to ^Super
+        0 ,             \ link
+        hash> SUPER ,   \ name
+        0 ,             \ class
+        0 ,             \ offset (was -1)
+
+S" SELF" hash> SELF add-hash
+
+Here to ^Self
+        ^Super ,        \ link
+        hash> SELF ,    \ name
+        0 ,             \ class
+        0 ,             \ offset (was -1)
+
+^Self   ' classes >body IFA !      \ latest ivar
+
+
+\ -------------------- Create a new Class --------------------
+
+0 value oldcurrent
+
+\ Build a class header with its superclass pointer
+: inherit  ( pfa -- )
+        dup here class-size move        \ copy class data
+        here body> vcfa>voc voc>vlink
+        voc-link @ over !
+        voc-link !
+        class-size allot                \ reserve rest of class data
+
+        dup ^Class SFA !                \ store pointer to superclass
+        ^Super iclass !                 \ store superclass in SUPER
+        ^Class ^Self iclass !           \ store my class in SELF
+                                        \ add to search order
+        also ^class body> vcfa>voc context ! definitions ;
+
+forth definitions
+
+here 0 , value Obj-CLASS
+       0 value Obj-LOADLINE
+
+: :Object ( -<object-name>- )
+        bl word count 255 min obj-buf place
+        current @ to oldcurrent         \ save context for later restoral
+        false to ?:M
+        doClass ,                       \ dummy filler to fool the system
+                                        \ into thinking this is a definition
+        here to Obj-CLASS
+        here to ^Class
+        0 op!                           \ for error checking in runIvarRef
+        ?loading @
+        if      loadline @
+        else    -1
+        then    to Obj-LOADLINE ;
+
+: :Class  ( -- )
+        current @ to oldcurrent         \ save context for later restoral
+        false to ?:M
+        create
+                here to ^Class
+                0 op!                   \ for error checking in runIvarRef
+        does>
+                [ here 8 - to doClass ] \ a dirty trick!
+                (Build) ;
+
+: <Super  ( -- )        \ allow inheriting from a class or an object
+        ' dup  ?isClass
+        if      >body inherit
+        else    dup ?isObj 0= abort" not a class or object"
+                >body @ inherit
+        then    ;
+
+synonym <Object <Super
+synonym <Class  <Super
+
+: |Class  ( -- )
+        current @ to oldcurrent         \ save context for later restoral
+        false to ?:M
+        create
+                here to ^Class
+                0 op!                   \ for error checking in runIvarRef
+        does>
+                [ here 8 - to do|Class ]  \ a dirty trick!
+                (|Build) ;
+
+classes definitions
+
+: ;Class  ( -- )
+        0 ^Super iclass !
+        0 ^Self  iclass !
+        0 to ^Class
+        forth definitions previous
+        oldcurrent ?dup
+        if      current !
+                0 to oldcurrent
+        then    ;
+
+: ;Object  ( -- )
+        0 ^Super iclass !
+        0 ^Self  iclass !
+        0 to ^Class
+        forth definitions previous
+        oldcurrent ?dup
+        if      current !
+                0 to oldcurrent
+        then    Obj-CLASS (Obj-Build)
+        Obj-LOADLINE last @ name> >view ! ;
+
+
+\ -------------------- Method Compiler --------------------
+
+
+: method   ( SelID -- )   \ Build a methods dictionary entry for selector
+        ?Class ?Exec
+        dup pocket count rot add-hash
+        ^Class MFA link,        \ link
+        ,                       \ name is selector's hashed value
+        m0cfa call,                 \ build methods cfas
+        m1cfa call,
+        0 ,                     \ #locals & #args
+        !csp ] ;                \ start compiler
+
+\ For Windows messages, we would like the selector to be a constant
+\ defined as the Window message number.  :M will support both types of
+\ selectors.
+
+260 constant unres-len
+
+create unres-methods unres-len allot
+       unres-methods unres-len erase
+
+: :M    ( -- )
+\       cr ." Method " >in @ bl word count type >in !
+        unres-methods unres-len erase   \ pre-clear unresolved methods array
+        @word (find)
+        if      execute  ( word must return selector value )
+        else    >selector
+        then    method
+        true to ?:M     ; immediate     \ mark as making a new method
+
+: ;M    ( -- )
+        ?:M 0= abort" Methods must START with :M !"
+        false to ?:M
+        ?csp
+        postpone unnestm
+        postpone [
+        0 to Parms
+        semicolon-chain do-chain
+        voc-also                        \ don't add to hash table
+        ; Immediate
+
+\ create make-amethod-buf 64 allot
+
+: resolve-methods ( -- )
+                unres-methods
+                begin   count dup
+                while   2dup
+                        2dup hash add-hash +
+                repeat  2drop
+                unres-methods unres-len erase ;
+
+\ -------------------- Object Compiler --------------------
+
+\ Key to instantiation actions
+\ 0 = notFnd            -not previously defined (not used)
+\ 1 = objTyp            -defined as an object
+\ 2 = classTyp          -as a class
+\ 3 = vecTyp            -as an object vector (value or defer)
+\ 4 = parmTyp           -as a named parm
+\ 5 = parenType         -open paren for defer group
+
+\ ( str -- cfa tokenID )  Determine type of token referenced by string.
+: refToken
+        pFind if  4 exit  then
+        (find) 0= ?missing
+        dup ?IsObj   if  1 exit  then
+        dup ?IsClass if  2 exit  then
+        dup ?IsVect  if  3 exit  then
+        dup ?IsParen if  5 exit  then
+        1 abort" Invalid object type" ;
+
+: ivarRef   ( selID ^iclass -- )                \ compile ivar reference
+        cell+ Find-Method >body ,  @ , ;        \ | 1cfa | offs |
+
+: runIvarRef   ( selID ^iclass -- )    \ run ivar reference (DEBUG ONLY!!)
+        ^base 0= abort" No object exposed"
+        cell+ Find-Method
+        swap @ ( offset ) ^base + swap execute ;
+
+
+0 value pSel  ( selector for [[ and ]] )  ( NOTE: NO NESTING!! )
+
+\ ( selID $str -- )  Build a reference to an object or vector
+: objRef
+        Case refToken
+          0 ( ?      ) of  abort                        endof
+          1 ( object ) of  dup ,  >obj find-method , drop  endof
+          2 ( class  ) of  >body (findm) ,              endof
+          3 ( vector ) of  ,  compile (defer) ,         endof
+          4 ( parm   ) of  ,  compile (defer) ,         endof
+          5 ( paren  ) of  drop  to pSel  251           endof
+        Endcase ;
+
+\ ( selPfa $str -- )  Execute using token in stream
+: runRef
+        Case refToken
+          0 ( ?      ) of  abort                        endof
+          1 ( object ) of  >obj find-method             endof
+          2 ( class  ) of  >body (findm)                endof
+          3 ( vector ) of  execute find-method          endof
+          4 ( parm   ) of  abort                        endof
+          5 ( paren  ) of  drop  to pSel  ['] noop      endof
+        Endcase
+        execute ( execute m0cfa ) ;
+
+
+\ ================= Selector support ==========================
+
+: _do_message   ( val string -- )
+        STATE @
+        IF
+                VFIND   \ instance variable?
+                IF    ivarRef   \ ivar reference
+                ELSE   objRef   \ compile object/vector reference
+                THEN
+        ELSE
+                VFIND
+                IF      runIvarRef      ( Debug only )
+                ELSE    runRef  \ run state - execute object/vector ref
+                THEN
+        THEN    ;
+
+-1 value method_hval
+
+create method_hstring name-max-chars 2 + allot
+
+\ message is the message compiler invoked by using a selector
+: do_message ( -- )
+        @word count name-max-chars min method_hstring place
+        method_hval method_hstring _do_message ; Immediate
+
+: _msgFind      ( addr -- addr false | cfa true )
+                ?isSel
+                if      count name-max-chars min 2dup hash dup ?unhash
+                        if      nip nip
+                        else    >r unres-methods
+                                begin   dup c@
+                                while   count +
+                                repeat  2dup + 1+            \ end of string
+                                unres-methods unres-len + >  \ beyond end?
+                                abort" Unresolved Methods buffer overflow!"
+                                place
+                                r>
+                        then    to method_hval ['] do_message
+                        1 EXIT
+                then
+                0 ;
+
+\ msgFind is the new action for find.  We look in the following order:
+\ 1. Local variables
+\ 2. Forth Dictionary (full search order)
+\ 3. If word ends in ":" treat it as a selector
+
+: msgFind       ( addr -- addr false | cfa true )
+                pfind    ?dup if  exit  then
+                (find)   ?dup if  exit  then
+                _msgFind ;
+
+' msgfind is find
+
+: _classInit  ( -- )    CLASSINIT: newObject  ;
+' _classInit is ClassInit
+
+
+\ -------------------- Late Binding --------------------
+
+\ Force late binding of method to object, as in SmallTalk
+\ a close bracket gets the last selID from pSel and
+\ compiles a defer: selID.  This will build a deferred reference to the
+\ parenthesized group.
+
+: ]]    State @
+        IF      251 ?Pairs
+                Compile (Defer)  pSel ,
+        ELSE
+                pSel swap Find-Method execute
+        THEN
+        ; Immediate
+
+\ left bracket has no meaning unless preceded by a selector.
+
+: [[  true abort"  [[ must be preceeded by a selector "   ; immediate
+
+\ Force a class pointer to be compiled when the object is used as
+\ an instance variable.  This is so that we can receive late-bound
+\ messages.
+
+: <ClassPointer  ( -- )  1 ^Class FLAGS ! ;
+
+\ Set a class and its subclasses to indexed
+
+: <Indexed  ( width -- )  ?Class  ^Class XFA !  <ClassPointer ;
+
+\ Compile a self reference, but only if the class is guaranteed to
+\ have a class pointer.  We can send ourself late-bound messages
+\ with the syntax:   Msg: [[ self ]]
+
+: Self  ( -- addr )
+        ^Class ClassPointer? 0= abort" Must use <Indexed or <ClassPointer"
+        compile ^base ; immediate
+
+
+\ -------------------- Instance Variables --------------------
+
+: bytes  ( n -- )
+        create  ^class DFA @ ,  class-allot
+        does> @  ^base + ;
+
+: int   ( -- )
+        header
+        (iv@) call,
+        ^Class DFA @ ,
+        (iv!) call,
+        (iv+!) call,
+        cell class-allot ;
+
+: int-array  ( size -- )
+        header
+        (iv[]@) call,
+        ^Class DFA @ ,
+        (iv[]!) call,
+        (iv[]+!) call,
+        cells class-allot ;
+
+: &> ( -- )
+    r> lcount cell+ @ ^base + swap >r ;
+
+: dispose ( addr -- )
+    ~: [[ dup ]] cell- free abort" Disposing Object failed!" ;
+
+\ -------------------- Base Class "Object" --------------------
+
+forth definitions
+
+:Class object   ' classes >body classes inherit
+
+        :M ClassInit:  ;M
+        :M ~:  ;M
+
+        :M Addr:   ( -- addr )   ^base  ;M
+
+        :M Print:  ( -- )    ." Object@"   ^base .  ;M
+
+unres-methods unres-len erase
+
+semicolon-chain chain-add resolve-methods  \ link into definition completion
+
+;Class
+
+\ -------------------- Debugging Tools --------------------
+
+0 op!  ( to help catch incorrect use of expose.  See runIvarRef. )
+
+((
+: expose  ( expose vocabulary of class or object )
+        ' dup ?isClass
+        if
+                >body   ( ^class )
+                0 op!  ( no object to send messages to! )
+        else
+                dup ?isObj not abort" Not an object or a class"
+                >obj dup op!  ( make current )
+                >class
+        then
+        to ^class                       \ reset current class
+        ^Class context !                \ add to search order
+        ^Class SFA @ ^Super iclass !    \ store superclass in SUPER
+        ^Class ^Self iclass !           \ store my class in SELF
+        ;
+
+: unexpose  ( -- )
+        0 ^Super iclass !
+        0 ^Self  iclass !
+        0 to ^Class
+        0 op!
+        forth definitions ;
+))
+
+
+only forth also definitions
+
+cr .( Class loaded )
+

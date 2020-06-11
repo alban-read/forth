@@ -1,0 +1,59 @@
+( Interpretive IF ELSE THEN control structures )
+( 14nov1994japs )
+
+cr .( Loading Interpretive Conditionals...)
+
+only forth also hidden definitions
+
+: definite-word ( definitely get a word from the input stream )
+        ( delim -- addr )
+        begin   dup word dup c@ 0=
+        while   drop refill 0=
+                abort" Input stream exhausted!"
+        repeat  nip ;
+
+: def-defined ( get a word, try to find it in the dictionary )
+        ( -< chars >- -- addr \ 0 | -- xt \ 1 | -- xt \ -1 )
+        bl definite-word ?uppercase (find) ;
+
+only forth definitions also hidden
+
+: [then] ( mark the end of the interpretive control structure )
+        ( -- )
+        ; immediate
+
+: [else] ( the alternative selection )
+        ( -- )
+        begin def-defined drop ['] [then] = until ; immediate
+
+: [if]  ( begin the interpretive control structure )
+        ( flag -- )
+        0= if begin def-defined drop dup ['] [else] = swap ['] [then]
+        = or until then ; immediate
+
+: #then ( mark the end of the interpretive control structure )
+        ( -- )
+        ; immediate
+
+: #endif ( mark the end of the interpretive control structure )
+        ( -- )
+        ; immediate
+
+: #else ( the alternative selection )
+        ( -- )
+        begin   def-defined drop
+                dup  ['] #then  =
+                swap ['] #endif = or
+        until   ; immediate
+
+: #if   ( begin the interpretive control structure )
+        ( flag -- )
+        0= if   begin   def-defined drop
+                        dup  ['] #else  =
+                        over ['] #then  = or
+                        swap ['] #endif = or
+                until
+           then ; immediate
+
+only forth also definitions
+

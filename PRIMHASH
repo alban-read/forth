@@ -1,0 +1,75 @@
+\ PRIMHASH.F    primitive hash functions
+
+cr .( Loading the Primitive Hash support...)
+
+\ -------------------- Find Name for Hashed Value --------------------
+
+11 #vocabulary hashed
+
+ 2 #vocabulary classes
+here ' classes >body -                  ( voc-pfa-size )
+5 cells reserve                         ( extra for a class )
+constant voc-pfa-size
+
+' hashed vcfa>voc constant hash-wid
+
+: unhash  ( hash-val -- addr len )
+        hash-wid voc#threads ( #threads ) 0
+        do      hash-wid i cells+
+                begin   @ ?dup
+                while   ( hash-val link-field )
+                        2dup cell+ ( link> ) >body @ =
+                        if      nip ( discard hash value )
+                                l>name nfa-count ( addr len )
+                                unloop exit
+                        then
+                repeat
+        loop
+        drop S" Unknown" ;
+
+: ?unhash  ( hash-val -- f1 )
+        hash-wid voc#threads ( #threads ) 0
+        do      hash-wid i cells+
+                begin   @ ?dup
+                while   ( hash-val link-field )
+                        2dup cell+ ( link> ) >body @ =
+                        if      2drop true
+                                unloop exit
+                        then
+                repeat
+        loop    drop false ;
+
+0 value obj-save
+
+: .M0NAME       ( a1 -- )
+                1 cells - @ unhash type ;
+
+: .M1NAME       ( a1 a2 -- a3 )
+                2 cells - @ unhash type
+                cell+   ( a1 becomes a3 )   \ skip next cell also
+                dup @ ?dup
+        if      obj-save cell - @           \ should use >CLASS, not yet there
+                voc-pfa-size cell+ +        \ should use IFA,    not yet there
+                begin   @ 2dup 3 cells+ @ =
+                        start/stop
+                until   nip dup
+                if      cell+ @ unhash space type
+                else    drop ." ???"
+                then    space
+        else    ."  self "
+        then    ;
+
+: add-hash  ( addr len hash-val -- )
+        >r 2dup hash-wid search-wordlist
+        if
+                r> 2drop 2drop  ( already found )
+        else
+                current @ >r
+                hash-wid current !
+                "header
+                r> current !
+                docon call,
+                r> ,
+        then ;
+
+

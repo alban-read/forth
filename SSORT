@@ -1,0 +1,27 @@
+\ shell sort
+anew shellsort
+
+0 value anf
+defer s@
+: _s@ + c@ ; ' _s@ is s@
+defer s!
+: _s! + c! ; ' _s! is s!
+defer s>     ' >   is s>
+variable x
+
+: shellsort ( ad len -- )
+    swap to anf
+    1 begin 2dup > while 2* repeat 1-
+    begin 2/ dup
+    while 2dup
+      do i dup anf s@ 0 x s!
+        over -
+        begin dup anf s@ 0 x s@ s>
+        while 2dup + >r
+          dup anf s@ r> anf s!
+          over -
+          dup 0<
+        until then over +
+        0 x s@ over anf s! drop
+      loop
+    repeat 2drop ;

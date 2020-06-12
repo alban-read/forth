@@ -2,8 +2,6 @@
 
 cr .( Loading OS support...)
 
-
-
 code _OS_Byte_0_2
  mov r0, tos
  swi " OS_Byte"
@@ -11,48 +9,151 @@ code _OS_Byte_0_2
  mov tos, r1
 next c;
 
-code _OS_Byte_2_0
-
-
-
 : _textxy
   134 _OS_Byte_0_2 ;
 
 ' _textxy is getxy
 
-
-
-
 code vsync
-  mov r0, # 19
-  swi " OS_Byte"
+ mov r0, # 19
+ swi " OS_Byte"
 next c;
 
+\ Graphics
 
-code OS_Plot ( y x type -- )
-  mov r0, tos
-  ldmfd sp !, { r1, r2, tos }
-  swi " OS_Plot"
-next c;
-
-code OS_Plot_xy ( x y type -- )
-
+\ at y x do t
+code OS_Plot ( y x t -- )
  mov r0, tos
- ldmfd sp !, { r1, tos }
- stmfd sp !, { r0, r1 }
-
- ldr r0, [ sp ]
- str tos, [ sp ]
- mov tos, r0
-
- mov r0, tos
- ldmfd sp !, { r2, r1, tos }
+ ldmfd sp !, { r1, r2, tos }
  swi " OS_Plot"
-
 next c;
 
+code -swap ( n1 n2 n3 -- n2 n1 n3 )
+ ldmfd sp !, { r1, r2 }
+ mov r0, r2
+ mov r2, r1
+ mov r1, r0
+ stmfd sp !, { r1, r2 }
+next c;
+
+\ RISCOS uses plot to draw points lines
+\ and shapes.
 
 
+\ at x y do t
+code plotxy ( x y t -- )
+ mov r0, tos
+ ldmfd sp !, { r3, r4, tos }
+ mov r1, r4
+ mov r2, r3
+ swi " OS_Plot"
+next c;
+
+\ line from x y to x1 y1
+code line ( x y x1 y1 --  )
+ mov r3, tos
+ ldmfd sp !, { r4, r5, r6, tos }
+ mov r0, # 4
+ mov r1, r4
+ mov r2, r3
+ swi " OS_Plot"
+ mov r1, r6
+ mov r2, r5
+ mov r0, # 5
+ swi " OS_Plot"
+next c;
+
+\ To plot a circle, move to centre
+\ plot circle to a point on the circumference
+code circle ( x y x1 y1 --  )
+ mov r3, tos
+ ldmfd sp !, { r4, r5, r6, tos }
+ mov r0, # 4
+ mov r1, r4
+ mov r2, r3
+ swi " OS_Plot"
+ mov r1, r6
+ mov r2, r5
+ mov r0, # 149
+ swi " OS_Plot"
+next c;
+
+\ To plot a circle, move to centre
+\ plot circle to a point on the circumference
+code fillcircle ( x y x1 y1 --  )
+ mov r3, tos
+ ldmfd sp !, { r4, r5, r6, tos }
+ mov r0, # 4
+ mov r1, r4
+ mov r2, r3
+ swi " OS_Plot"
+ mov r1, r6
+ mov r2, r5
+ mov r0, # 157
+ swi " OS_Plot"
+next c;
+
+\ move to x y
+code plot1 ( x y  --  )
+ mov r3, tos
+ ldmfd sp !, { r4, tos }
+ mov r0, # 4
+ mov r1, r4
+ mov r2, r3
+ swi " OS_Plot"
+next c;
+
+\ move to x y then x1 y1
+code plot2 ( x y x1 y1 --  )
+ mov r3, tos
+ ldmfd sp !, { r4, r5, r6, tos }
+ mov r0, # 4
+ mov r1, r4
+ mov r2, r3
+ swi " OS_Plot"
+ mov r1, r6
+ mov r2, r5
+ mov r0, # 4
+ swi " OS_Plot"
+next c;
+
+\ draw rectangle from x y to x1 y1
+code fillrect ( x y x1 y1 --  )
+ mov r3, tos
+ ldmfd sp !, { r4, r5, r6, tos }
+ mov r0, # 4
+ mov r1, r4
+ mov r2, r3
+ swi " OS_Plot"
+ mov r1, r6
+ mov r2, r5
+ mov r0, # 101
+ swi " OS_Plot"
+next c;
+
+\ square at x y of size w
+code square ( x y w -- )
+ mov r3, tos
+ ldmfd sp !, { r4, r5, tos }
+ mov r0, # 4
+ mov r1, r5
+ mov r2, r4
+ swi " OS_Plot"
+ add r1, r5, r3
+ add r2, r4, r3
+ mov r0, # 101
+ swi " OS_Plot"
+next c;
+
+\ at x y finish triangle
+code dotriangle ( x y  --  )
+ mov r3, tos
+ ldmfd sp !, { r4, tos }
+ mov r0, # 85
+ mov r1, r4
+ mov r2, r3
+ swi " OS_Plot"
+next c;
 
 : clg 16 emit ;
 
@@ -76,8 +177,6 @@ next c;
 : square ( x y w -- )
   >r  2dup r> tuck + >r + r>
   fillrect ;
-
-
 
 
 code -32* ( n -- n' )

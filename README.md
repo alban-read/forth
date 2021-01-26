@@ -17,7 +17,7 @@ Selfie
 
 
 
-In theory all you need is the source and the Kernel file (which is a binary) to get started, added ZIP file for RISCOS.
+In theory all you need is the source and the Kernel file (which is a binary) to get started, added ZIP file for RISC OS.
 
 This FORTH is interesting as it (true to its Win32Forth roots) is a meta compiler.
 

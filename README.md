@@ -38,5 +38,40 @@ In any event I still enjoy and use this FORTH; for poking around my ARM based sy
 The original author granted permissions to copy and use the software; see !HELP file.
 
 
+## Rebuild all
+
+Unzip the wf/zip file to your desk.
+Start !WimpForth
+
+To completely rebuild 
+You can rebuild the kernel.
+And then use the kernerl to rebuild the app.
+
+# Kernel
+
+![kernel](Step1.jpg)
+
+# Make app
+
+![kernel](Step2.jpg)
+
+
+To make any changes to the FORTH you just edit the FKERNEL and other files, especially WINDOWS
+
+This app has made its way from the Archimedes to RISC PC IYONIX and finally the PI400 by repeatedly doing the above, making small changes along the way.
+
+
+## Fun things
+
+The forth interpreter NEXT is one instuction on the ARM 32.
+
+The assembler supported is very RISC - the built in portable assembler implements the ARM2 instructions as supported by the Archimedes.  
+
+
+
+
+
+
+
 
 

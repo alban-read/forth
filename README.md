@@ -75,7 +75,11 @@ The forth interpreter NEXT is only one instuction on the ARM 32.
 ```
 
 
-The assembler supported is very RISC - the built in portable assembler implements the ARM2 instructions as supported by the Archimedes.  
+The assembler supported is classic RISC 
+
+- the built in portable assembler implements just the ARM2 instructions as supported by the Archimedes.  
+
+
 
 
 

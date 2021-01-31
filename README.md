@@ -21,6 +21,8 @@ In theory all you need is the source and the Kernel file (which is a binary) to 
 
 These can be found in the WF ZIP file for RISC OS.
 
+## Meta Compiler
+
 This FORTH is very interesting since (true to its Win32Forth roots) it is a meta compiler.
 
 From a working kernel this FORTH is able to recompile itself; this is true to the FORTH philosophy; 
@@ -47,8 +49,8 @@ Unzip the wf/zip file to your desk.
 Start !WimpForth
 
 To completely rebuild 
-You can rebuild the kernel.
-And then use the kernerl to rebuild the app.
+You can optionally edit and rebuild the kernel.
+And then use your new kernel to rebuild the app.
 
 # Kernel
 

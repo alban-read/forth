@@ -61,7 +61,7 @@ And then use the kernerl to rebuild the app.
 
 To make any changes to the FORTH you just edit the FKERNEL and other files, especially WINDOWS
 
-This app has made its way from the Archimedes to RISC PC IYONIX and finally the PI400 by repeatedly doing the above, making small changes along the way.
+This app has made its way from the Archimedes to RISC PC IYONIX and finally the PI400 by repeatedly doing the above, making very small changes along the way.
 
 
 ## Fun things

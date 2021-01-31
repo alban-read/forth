@@ -52,11 +52,11 @@ And then use the kernerl to rebuild the app.
 
 # Kernel
 
-![kernel](Step1.jpeg)
+![kernel](step1.jpeg)
 
 # Make app
 
-![app](Step2.jpeg)
+![app](step2.jpeg)
 
 
 To make any changes to the FORTH you just edit the FKERNEL and other files, especially WINDOWS

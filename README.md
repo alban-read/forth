@@ -25,7 +25,7 @@ This FORTH is very interesting since (true to its Win32Forth roots) it is a meta
 
 From a working kernel this FORTH is able to recompile itself; this is true to the FORTH philosophy; 
 and different from many micro forths where to bootstrap you needed to use an assembler (if you were lucky); 
-or enter the hex into a machine monitor (I have done that.)
+or enter the hex into a machine monitor and patch it (I have done that, fun three weeks.)
 
 The idea being  that as long as you have a computer running this FORTH `all` you need to do is re-write the assembler for another architecture; rewrite some kernel code words in that assembler; and re-generate the kernel to the new target system using the meta compiler.
 

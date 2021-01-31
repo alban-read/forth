@@ -56,7 +56,7 @@ And then use the kernerl to rebuild the app.
 
 # Make app
 
-![kernel](Step2.jpg)
+![app](Step2.jpg)
 
 
 To make any changes to the FORTH you just edit the FKERNEL and other files, especially WINDOWS

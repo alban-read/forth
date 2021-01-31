@@ -31,7 +31,7 @@ or enter the hex into a machine monitor and patch it (I have done that, fun thre
 
 The idea being  that as long as you have a computer running this FORTH `all` you need to do is re-write the assembler for another architecture; rewrite some kernel code words in that assembler; and re-generate the kernel to the new target system using the meta compiler.
 
-Thanks to the meta-compiler once you have FORTH; FORTH can be used to bootstrap the next FORTH, for ever.
+Thanks to the meta-compiler once you have FORTH; FORTH can build the next FORTH, for ever.
 
 I guess that the original author may have done that; probably starting from the PC version.
 

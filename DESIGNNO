@@ -13,6 +13,7 @@
     The NEXT macro consists of the instruction
          ldr pc, [ ip ], # 4
     This means that after the header NEXT expects code at the CFA.
+    
     Code words will start their viscious work immediately.
     Deferred words load the pc from the next cell: ldr pc, [ pc, # -4 ]
     Other words will branch with link to their DO***** routines

@@ -6,6 +6,7 @@ comment:
     You will usually use WINDOWs by sending them a Start: message
     passing the initial position. And you will close the window
     by sending a Stop: message, what else.
+
     GENERIC-WINDOWs are linked in a list so that the APPLICATION can
     distribute the Wimp messages to the right GENERIC-WINDOW. (see pause')
     WINDOWs are special GENERIC-WINDOWs which can respond to the
@@ -48,6 +49,103 @@ code vsync
   swi " OS_Byte"
 next c;
 
+code -swap ( n1 n2 n3 -- n2 n1 n3 )
+ ldmfd sp !, { r1, r2 }
+ mov r0, r2
+ mov r2, r1
+ mov r1, r0
+ stmfd sp !, { r1, r2 }
+next c;
+
+\ at x y do t
+code os_plot_xy ( x y t -- )
+ mov r0, tos
+ ldmfd sp !, { r3, r4, tos }
+ mov r1, r4
+ mov r2, r3
+ swi " OS_Plot"
+next c;
+
+\ line from x y to x1 y1
+code line ( x y x1 y1 --  )
+ mov r3, tos
+ ldmfd sp !, { r4, r5, r6, tos }
+ mov r0, # 4
+ mov r1, r4
+ mov r2, r3
+ swi " OS_Plot"
+ mov r1, r6
+ mov r2, r5
+ mov r0, # 5
+ swi " OS_Plot"
+next c;
+
+
+code circle ( x y x1 y1 --  )
+ mov r3, tos
+ ldmfd sp !, { r4, r5, r6, tos }
+ mov r0, # 4
+ mov r1, r4
+ mov r2, r3
+ swi " OS_Plot"
+ mov r1, r6
+ mov r2, r5
+ mov r0, # 149
+ swi " OS_Plot"
+next c;
+
+code fillcircle ( x y x1 y1 --  )
+ mov r3, tos
+ ldmfd sp !, { r4, r5, r6, tos }
+ mov r0, # 4
+ mov r1, r4
+ mov r2, r3
+ swi " OS_Plot"
+ mov r1, r6
+ mov r2, r5
+ mov r0, # 157
+ swi " OS_Plot"
+next c;
+
+code fillrect ( x y x1 y1 --  )
+ mov r3, tos
+ ldmfd sp !, { r4, r5, r6, tos }
+ mov r0, # 4
+ mov r1, r4
+ mov r2, r3
+ swi " OS_Plot"
+ mov r1, r6
+ mov r2, r5
+ mov r0, # 101
+ swi " OS_Plot"
+next c;
+
+
+: gcol 18 emit 0 emit emit ;
+
+: colour 17 emit emit ;
+
+: bcolour 17 emit  128 + emit ;
+
+: bcol 18 emit 0 emit 128 + emit ;
+
+
+
+
+\ fake a cursor.
+\ square at x y of size w
+code square ( x y w -- )
+ mov r3, tos
+ ldmfd sp !, { r4, r5, tos }
+ mov r0, # 4
+ mov r1, r5
+ mov r2, r4
+ swi " OS_Plot"
+ add r1, r5, r3
+ add r2, r4, r3
+ mov r0, # 101
+ swi " OS_Plot"
+next c;
 
 code Wimp_CreateWindow ( buf -- hndl )
   mov r1, tos
@@ -132,7 +230,6 @@ code Wimp_GetCaretPosition ( buf -- )
   swi " Wimp_GetCaretPosition"
   ldmfd sp !, { tos }
 next c;
-
 
 code Wimp_BlockCopy ( dymin dxmin symax sxmax symin sxmin whndl -- )
   mov r0, tos
@@ -223,6 +320,7 @@ int hWnd
 
 :m ZeroWindow: ( -- )
      0 to hwnd ;m
+
 :m ~:         ( -- )
      windows-link cell+ @ self =
      if windows-link @ to windows-link
@@ -233,6 +331,7 @@ int hWnd
          nip
        repeat
      then ;m
+
 ;class
 
 :class window <super generic-window <classpointer
@@ -333,7 +432,7 @@ int ?open
      Black White       SetWaColour
      BT_1/Drag/2 to WBType
      -1 to behindhndl 0 to #icons
-     0 to mypopup ;m            nostack1
+     0 to mypopup ;m  nostack1
 
 :m Move:      { px py -- }
      screen-size
@@ -365,12 +464,14 @@ int ?open
      On_Init: [[ self ]]
      Move: self
      here 512 + aligned dup Build: [[ self ]] drop
-     Wimp_CreateWindow to hWnd ;m
+     Wimp_CreateWindow to hWnd
+;m
 
 :m Open:     ( -- )
      hWnd 0= if xmin ymin Create: self then
      ^base Wimp_OpenWindow
-     true to ?open ;m
+     true to ?open
+ ;m
 
 :m Close:     ( -- )
      hWnd block !
@@ -379,7 +480,8 @@ int ?open
 
 :m Start:     ( x y -- )
      hwnd 0= if Create: self else Move: self then
-     Open: self ;m
+     Open: self
+;m
 
 :m Stop:
      Close: self
@@ -391,9 +493,11 @@ int ?open
      lcount to xmax    lcount to ymax
      lcount to xscroll lcount to yscroll
      @      to behindhndl
-     Open: self ;m
+     Open: self
+ ;m
 
 :m On_Close: ( block -- )
+
      drop Close: self ;m
 
 :m On_Menu: ( block -- )
@@ -406,6 +510,7 @@ int ?open
      drop ;m
 
 :m On_Adjust: ( block -- )
+
      drop ;m
 
 :m On_Click: ( block -- )
@@ -415,9 +520,6 @@ int ?open
           1 of On_Adjust: [[ self ]] endof
        nip
      endcase
-     \ force caret to our window.
-      -1 -10 -10 -1 -1  hWnd Wimp_SetCaretPosition
-
  ;m
 
 :m &popup:   ( -- ^obj )
@@ -437,6 +539,8 @@ int ?open
     %10010011
     rot Wimp_ReportError ;
 
+align
+variable caretpos 64 allot
 
 :class text-window <super window
 int cols
@@ -446,25 +550,34 @@ int &endscreen
 int &title
 int xcur
 int ycur
-32 bytes caretpos
+int offx
+int offy
+int curon
 
-: hascaret?
-   caretpos Wimp_GetCaretPosition
-   caretpos @ hWnd =
- ;
+:m HideCaret:
+    -1 0
+    -10 -10
+    -1 Hwnd
+    Wimp_SetCaretPosition
+    0 to curon
+;m
 
-: caretoff
-  hascaret? if
-     -1 -10 -10 -1 -1  hWnd Wimp_SetCaretPosition
-   then
-  ;
+:m ShowCaret:
+    0 0
+    ycur 1+ -32*  xcur 16*
+    -1 Hwnd
+    Wimp_SetCaretPosition
+    -1 to curon
+;m
 
-: caret
-  hascaret? if
-    -1 32 ycur 1+ -32* xcur 16* 4 + -1 hWnd Wimp_SetCaretPosition
-   then
-  ;
+:m GainCaret:
+  HideCaret: self
+;m
 
+:m On_Click: ( block -- )
+   GainCaret: self
+   On_Click: super
+;m
 
 :m ClassInit: ( ^title cols rows -- )
      ClassInit: super
@@ -517,6 +630,21 @@ code rectcalc ( cols block -- ad len #lines y x )
   stmfd sp !, { r0, r1, r2, r3 }
 next c;
 
+
+\ fake a cursor
+: draw_block
+  offx 0 > offy 0 > curon state @ 0 = and and and if
+    offx xcur 16 * + 2 +
+    offy ycur 1+ -32* + 4 +
+    9 square
+  then  ;
+
+
+: Update+Clear ( x1 y1 x2 y2 -- )
+    -32* 32 + swap 16* 32 + 2swap 1+ -32* swap 16*
+    Hwnd Wimp_ForceRedraw
+     ;
+
 : DoRectangle
     cols 2r@ drop
     rectcalc ( ad len #lines y x )
@@ -527,20 +655,23 @@ next c;
       -trailing OS_WriteN          \ print it
       -32 plotpos cell+ +!         \ bump screen pos
       swap cols + swap             \ bump source
-    loop 2drop ;
+    loop 2drop
+ ;
 
 :m On_Redraw: ( block -- )
-     caretoff
+     \ vsync \ may not be needed now.
      dup>r Wimp_RedrawWindow
+     r@ 4 + @ to offx
+     r@ 16 + @ to offy
      begin while
        DoRectangle
        r@ Wimp_GetRectangle
      repeat r>drop
-     caret
+     draw_block
     ;m
 
 : Update ( x1 y1 x2 y2 -- )       \ 1=bottom left
-    -32* block dup>r 16 + !       \ 2=top right
+   -32* block dup>r 16 + !       \ 2=top right
     16* r@ 12 + ! 1+ -32* r@ 8 + !  16* r@ 4 + !
     hWnd r@ !
     r@ Wimp_UpdateWindow
@@ -550,17 +681,15 @@ next c;
     repeat r>drop
     ;
 
-: Update+Clear ( x1 y1 x2 y2 -- )
-    -32* 32 + swap 16* 32 + 2swap 1+ -32* swap 16*
-    Hwnd Wimp_ForceRedraw
-     ;
-
 : PutText ( ad len -- x y )
      dup xcur + cols - dup 0>=
      if - else drop then tuck
      &thescreen ycur cols * + xcur + swap cmove
      xcur ycur rot +to xcur
-     caret ;
+     curon if
+      xcur 1-  ycur xcur 1+ ycur Update+Clear
+     then
+   ;
 
 : UpdateText ( x y -- )
      xcur ycur Update
@@ -571,6 +700,7 @@ next c;
       ;m
 
 : Scroll ( -- )
+       vsync
        &thescreen cols + &thescreen rows 1- cols * dup>r cmove
        &thescreen r> + cols blank
        rows 1- -32* 0 -32 cols 16* rows -32* 0 hWnd Wimp_BlockCopy
@@ -582,6 +712,7 @@ next c;
      if Scroll
        0 rows 1- cols over Update+Clear
      else 1 +to ycur then
+     0 to curon
       ;m
 
 :m BackSpace: ( -- )
@@ -632,8 +763,8 @@ variable cblock
 
 :m On_Key: ( block -- )
      24 + w@ PutKey: self
-
      ;m
+
 ;class
 
 :class edit-window <super text-window <classpointer
@@ -642,14 +773,12 @@ variable cblock
      ClassInit: super
      BT_Click to WBType ;m
 
-
-
 :m On_Select: ( block -- )
      drop   ;m
 
 :m PutText:   ( ad len -- )
      PutText UpdateText
-      ;m
+     ;m
 
 :m PutCR:     ( -- )
      0 to xcur
@@ -657,7 +786,6 @@ variable cblock
      if Scroll else 1 +to ycur then
      0 ycur cols over Update+Clear
     ;m
-
 
 ;class
 
@@ -705,7 +833,9 @@ mainwindow dup to outwindow to applwin
      case 2 of @ 64 - -96 start: barpopup
                barpopup to lastpopup endof
           4 of drop open: mainwindow endof
-     endcase ;m
+     endcase
+ ;m
+
 ;class
 
 " !wimpforth" drop 1- iconbar-icon ibicon
@@ -714,19 +844,22 @@ defer On_DataLoad ( ad len -- )
 
 also classes
 
+align
+
 :class application <super object <classpointer
+
 CKey keybuf
+
 create PollBuf 256 allot
 
 : pause'
-
     PollBuf 0 Wimp_Poll
     case
-      1 of  On_Redraw: [[ getwin ]] endof
+      1 of          On_Redraw: [[ getwin ]] endof
       2 of            On_Open: [[ getwin ]] endof
       8 of             On_Key:    applobj   endof
-     \ 12 of       On_GainCaret: [[ getwin ]] endof
- \     11 of       On_LoseCaret: [[ getwin ]] endof
+ \   12 of       On_GainCaret: [[ getwin ]] endof
+ \   11 of       On_LoseCaret: [[ getwin ]] endof
       9 of   On_MenuSelection:    applobj   endof
       6 of           On_Click:    applobj   endof
       3 of           On_Close: [[ getwin ]] endof
@@ -736,12 +869,13 @@ create PollBuf 256 allot
 \      7 of         On_DragBox: [[ getwin ]] endof
 \      4 of  On_PointerLeaving: [[ getwin ]] endof
 \      5 of On_PointerEntering: [[ getwin ]] endof
-\     10 of On_ScrolReq: [[ getwin ]] endof
+\     10 of        On_ScrolReq: [[ getwin ]] endof
 \     13 of On_NonZeroPollWord: [[ getwin ]] endof
      ( otherwise ) nip ( the pointer to block )
     endcase ;
 
 :m ClassInit:
+
      applobj abort" Only one Application!"
      self to applobj ;m
 
@@ -786,7 +920,7 @@ create d&dbuf 64 allot
 
 :m PutKey: ( c -- ) PutKey: keybuf ;m
 
-:m GetKey: ( -- c ) GetKey: keybuf ;m
+:m GetKey: ( -- c ) GetKey: keybuf  ;m
 
 ;class previous
 
@@ -799,12 +933,15 @@ create d&dbuf 64 allot
                 loop    ;
 
 : loadit s" fload " "pushkeys "to-pathend" "pushkeys 13 pushkey ;
+
 ' loadit is On_DataLoad
+
 ' wpushkey is pushkey
+
 ' w"pushkeys is "pushkeys
 
 : wtype ( ad len -- )
-    PutText: outwindow outpause ;
+    PutText: outwindow outpause  ;
 
 : wemit ( c -- )
     dup bl <
@@ -817,7 +954,8 @@ create d&dbuf 64 allot
     else  sp@ 1 wtype drop then
     ;
 
-: wcr  PutCR: outwindow  ;
+: wcr  PutCR: outwindow
+       HideCaret: outwindow ;
 
 : wcrtab
     PutCR: outwindow
@@ -830,7 +968,9 @@ create d&dbuf 64 allot
 : wkey? pause IsKey?: applobj ;
 
 : wkey  begin pause IsKey?: applobj until
-        GetKey: applobj ;
+        GetKey: applobj
+        ShowCaret: mainwindow
+        ;
 
 : wgetcolrow GetColRow: outwindow ;
 
@@ -842,7 +982,7 @@ create d&dbuf 64 allot
 
 : w?cr       wgetxy drop + wgetcolrow drop > if cr then ;
 
-: wcls       Cls: outwindow ;
+: wcls       Cls: outwindow  ;
 
 : window-io     ( -- )                  \ reset to Forth IO words
                 ['] wemit      is emit

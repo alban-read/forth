@@ -41,7 +41,7 @@ next c;
 
 
 \ at x y do t
-code plotxy ( x y t -- )
+code os_plot_xy ( x y t -- )
  mov r0, tos
  ldmfd sp !, { r3, r4, tos }
  mov r1, r4

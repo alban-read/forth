@@ -1,0 +1,7 @@
+It is fun that FORTH interpreters next step on an ARM processor (32 bit) is only one instruction.
+
+ldr pc, [ ip ], # 4
+
+To zip this package for redistribution on RISCOS
+
+zip wf/zip !WimpForth -r

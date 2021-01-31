@@ -1,7 +1,6 @@
 \
 \ ANS Forth kernel for ARM 3 machines  Martin Läuter
-\ modified for strongarm 2007 Alban Read
-\ Tested on RiscPC; Iyonix; Titanium.
+\ modified for strongarm 2007 Alban Read - works on RiscPC and Iyonix and PI400
 \
 decimal
 here: coldstart 0 , \ branch to cold, will be patched later
@@ -1753,7 +1752,7 @@ next c;
     OS_NewLine #out off ;
 defer cr   ' _cr is cr
 
-: _cls 12 emit  #out off ;
+: _cls #out off ;
 defer cls  ' _cls is cls
 
 : _?cr ( n -- ) #out @ + ( lmargin ) 50 > if cr then ;
@@ -2785,7 +2784,13 @@ next c;
 defer number,
 ' _number, is number,
 
+
+\ supress cursor during execution
+defer cursor-off
+ ' noop is  cursor-off
+
 : _interpret
+    cursor-off
     begin
       bl word dup c@
     while

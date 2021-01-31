@@ -1,16 +1,14 @@
 
               Some Sort of Documentation on !WimpForth
 
-   By Martin :-
-   
-   Here is the first release of !WimpForth you probably waited for
+    Here is the first release of !WimpForth you probably waited for
     a long time. Its main purpose is to make it easier to write
     Forth programs running under the Wimp of RISC OS. For now it
     uses in its bootup sequence Version 3.10, but I haven't used
     RISC OS 3 routines awfully lot, so that it should also run
     if you change the number in the code.
     
-    The Forth machine is VERY true to the Win32Forth machine
+    The Forth machine is VERY tough to the Win32Forth machine
     designed by Andrew McKewan and Tom Zimmer. They both deserve
     big thanks, since I reused so much code (and it was reusable!)
     that you might call WimpForth a port of Win32Forth (originally
@@ -39,7 +37,7 @@
     
     * AND FULL SOURCE INCLUDED - if you find bugs or features you
       don't like, correct them in the source until they work as
-      you like.
+      you like, ***and report the error, please***
       
     Otherwise WimpForth will behave like other Forths, please refer
     to standard literature ("Thinking Forth" - Leo Brodie) to learn
@@ -112,7 +110,11 @@
     If you find errors, uncovered cases, misfeatures etc.,
     please report to
     
-    Martin 
+    laeuter@miaix550.mathematik.uni-leipzig.de
     
-			  
+    or snail: Martin Läuter
+              Endersstr. 38
+              04177 Leipzig
+              Fed. Rep. of Germany
+              
     Happy Forthing!

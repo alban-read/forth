@@ -66,7 +66,14 @@ This app has made its way from the Archimedes to RISC PC IYONIX and finally the 
 
 ## Fun things
 
-The forth interpreter NEXT is one instuction on the ARM 32.
+The forth interpreter NEXT is only one instuction on the ARM 32.
+
+```FORTH
+: next
+    >pre ldr pc, [ ip ], # 4
+    pre> ;
+```
+
 
 The assembler supported is very RISC - the built in portable assembler implements the ARM2 instructions as supported by the Archimedes.  
 

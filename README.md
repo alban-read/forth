@@ -65,7 +65,7 @@ You start the command line kernel and you type fload makewin
 
 To make any changes to the FORTH you just edit the FKERNEL and other files, especially WINDOWS
 
-This app has made its way from the Archimedes to RISC PC IYONIX and finally the PI400 by repeatedly doing the above, making very small changes along the way.
+This app has made its way from the Archimedes to RISC PC then via IYONIX to the TI and PI400 by repeatedly doing the above, making ever so small changes along the way.
 
 
 ## Fun things
@@ -79,10 +79,11 @@ The forth interpreter NEXT is only one instuction on the ARM 32.
 ```
 
 
-The assembler supported is classic RISC 
+## The assembler supported is classic RISC 
 
 - the built in portable assembler implements just the ARM2 instructions as supported by the Archimedes.  
 
+After all; who needs a fancy divide instruction or floating point.
 
 
 ## Recent History Summary

@@ -2,6 +2,7 @@
 \ ANS Forth kernel for ARM 3 machines  Martin Läuter
 \ modified for strongarm 2007 Alban Read - works on RiscPC and Iyonix and PI400
 \
+
 decimal
 here: coldstart 0 , \ branch to cold, will be patched later
 here: memtotal  0 , \ total memory available
@@ -502,7 +503,7 @@ code ((findm))
   mvn tos, # 0
 next c;
 
-code hash       ( ad cnt -- hash )
+code hash   ( ad cnt -- hash )
   ldmfd sp !, { r0 }
   mov r1, tos
   mov tos, # 0
@@ -1454,7 +1455,7 @@ create context        #vocs cells allot
 variable current
 variable last
 variable voc-link
-0  value source-id
+0 value source-id
   create filebuf        260 allot
   create tib            260 allot
   create (source)   here 0 , tib ,
@@ -1662,6 +1663,7 @@ variable #out
 
 : _emit
     OS_WriteC outpause 1 #out +! ;
+
 defer emit ' _emit is emit
 
 code %_key?   ( -- f )
@@ -1686,7 +1688,9 @@ code %_key?   ( -- f )
   sub s tos, r2, # 1
   sbc tos, tos, tos
 next c;
+
 : _key? pause  %_key? ;
+
 defer key? ' _key? is key?
 
 code %_key     ( -- c )

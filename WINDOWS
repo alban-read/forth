@@ -80,7 +80,6 @@ code line ( x y x1 y1 --  )
  swi " OS_Plot"
 next c;
 
-
 code circle ( x y x1 y1 --  )
  mov r3, tos
  ldmfd sp !, { r4, r5, r6, tos }
@@ -121,15 +120,13 @@ code fillrect ( x y x1 y1 --  )
 next c;
 
 
-: gcol 18 emit 0 emit emit ;
+: gcol 18 OS_WriteC 0 OS_WriteC OS_WriteC ;
 
-: colour 17 emit emit ;
+: colour 17 OS_WriteC OS_WriteC ;
 
-: bcolour 17 emit  128 + emit ;
+: bcolour 17 OS_WriteC  128 + OS_WriteC ;
 
-: bcol 18 emit 0 emit 128 + emit ;
-
-
+: bcol 18 OS_WriteC 0 OS_WriteC 128 + OS_WriteC ;
 
 
 \ fake a cursor.
@@ -359,6 +356,7 @@ int mypopup
 64 bytes title"
 int ?open
 
+
 : SetSize     { dx dy -- }
      screen-size
      cells 44 - dy ymin + min to ymax
@@ -550,9 +548,12 @@ int &endscreen
 int &title
 int xcur
 int ycur
-int offx
-int offy
 int curon
+
+: hascaret?
+   caretpos Wimp_GetCaretPosition
+   caretpos @ hWnd =
+ ;
 
 :m HideCaret:
     -1 0
@@ -561,6 +562,17 @@ int curon
     Wimp_SetCaretPosition
     0 to curon
 ;m
+
+:m On_LoseCaret: ( block )
+   0 to curon
+   drop
+;m
+
+:m On_GainCaret: ( block )
+   -1 to curon
+   drop
+;m
+
 
 :m ShowCaret:
     0 0
@@ -633,10 +645,17 @@ next c;
 
 \ fake a cursor
 : draw_block
-  offx 0 > offy 0 > curon state @ 0 = and and and if
-    offx xcur 16 * + 2 +
-    offy ycur 1+ -32* + 4 +
-    9 square
+  hascaret?
+  xmin 0 >
+  ymin 0 >
+  curon
+  state @ 0 =
+  and and and and if
+    7 gcol
+    xmin xcur 16 * + 2 +
+    ymax ycur 1+ -32* + 4 +
+    11 square
+    0 gcol
   then  ;
 
 
@@ -656,22 +675,20 @@ next c;
       -32 plotpos cell+ +!         \ bump screen pos
       swap cols + swap             \ bump source
     loop 2drop
+    draw_block
  ;
 
 :m On_Redraw: ( block -- )
-     \ vsync \ may not be needed now.
+     vsync \ may not be needed now.
      dup>r Wimp_RedrawWindow
-     r@ 4 + @ to offx
-     r@ 16 + @ to offy
      begin while
        DoRectangle
        r@ Wimp_GetRectangle
      repeat r>drop
-     draw_block
     ;m
 
 : Update ( x1 y1 x2 y2 -- )       \ 1=bottom left
-   -32* block dup>r 16 + !       \ 2=top right
+   -32* block dup>r 16 + !        \ 2=top right
     16* r@ 12 + ! 1+ -32* r@ 8 + !  16* r@ 4 + !
     hWnd r@ !
     r@ Wimp_UpdateWindow
@@ -858,8 +875,8 @@ create PollBuf 256 allot
       1 of          On_Redraw: [[ getwin ]] endof
       2 of            On_Open: [[ getwin ]] endof
       8 of             On_Key:    applobj   endof
- \   12 of       On_GainCaret: [[ getwin ]] endof
- \   11 of       On_LoseCaret: [[ getwin ]] endof
+     12 of       On_GainCaret: [[ getwin ]] endof
+     11 of       On_LoseCaret: [[ getwin ]] endof
       9 of   On_MenuSelection:    applobj   endof
       6 of           On_Click:    applobj   endof
       3 of           On_Close: [[ getwin ]] endof

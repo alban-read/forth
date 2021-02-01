@@ -33,9 +33,7 @@ fload menus
 fload windows
 fload controls
 
-\ *********************************
-\ the wimp objects WimpForth uses
-\ please look at the last 7 files
+
 
 application ForthApp
 

@@ -1,28 +1,39 @@
 \ $Id: class.f 1.1 1994/04/01 07:52:15 andrew Exp $
 
 comment:
+
    This file introduces object orientation to WimpForth.
+
    You declare a new class by
      :class newcl <super parent
          ...
      ;class
+
    where parent is an existing class (only one!!)
+
    In between you define instance variables
+
        int flag
+
    and methods
        :m SetFlag:  ( f -- ) to flag ;m
+
    Available are all methods and instance variable of the parent class.
+
    Until now this is like a type declaration. You define an object of
    this class like that:
       newcl newobj
    newobj is now ready to receive messages: (=invocation of the methods)
       0 SetFlag: newobj
+
    The first message (ClassInit:) was automatically sent to it when
    newobj was created 2 lines before. (This is part of the system!)
+
    There are more aspects of the problem. Extensive use of classes
    is made in the Wimp interface of WimpForth. Please have a look
    at the files "icons", "windows", "menus", "controls" and for
    defining objects at the file "extend".
+
 comment;
 
 only forth also definitions
@@ -110,7 +121,9 @@ dbg-next-cell chain-add dbg-next-cell-class \ link into the debugger
         dup ?exit                       \ leave if already found
         over ['] (Defer) =
         if      2drop cr .s
+
 \ !!! USES A COPY OF THE ADDRESS ON TOP OF THE STACK TO LOCATE THE METHOD !!!
+
         [ bug ] ip @ cell+ @ over Find-Method nip 3 cells+ ip !
                 2 nesting +!
                 true
@@ -151,7 +164,9 @@ dbg-nest-chain chain-add dbg-nest-class
 : ?isClass  ( cfa -- f )  call@ dup   doCLass =
                             swap do|Class = or ;
 : ?isObj    ( cfa -- f )  call@ doObj = ;
+
 : ?isValue  ( cfa -- f )  call@ doValue = ;
+
 : ?isVect   ( cfa -- f )  call@ dup doValue =
                            over doDefer = or
                            swap (iv@) = or ;
@@ -176,6 +191,7 @@ dbg-nest-chain chain-add dbg-nest-class
 
 \ -------------------- Initialize Instance Variables --------------------
 ((
+
 Instance variable consists of four 4-byte fields.  A fifth field is
 used for indexed ivars only.
 
@@ -189,6 +205,7 @@ used for indexed ivars only.
 
 In the stack diagrams, "ivar" refers to the starting address of this
 structure.  The IFA field of a class points to the first ivar.
+
 ))
 
 : iclass     ( ivar -- 'class )   2 cells + ;

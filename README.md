@@ -54,13 +54,13 @@ And then use your new kernel to rebuild the app.
 
 ![kernel](step1.jpeg)
 
-You type fload meta
+From the forth edit window you type fload meta
 
 # Make app
 
 ![app](step2.jpeg)
 
-You type fload makewin
+You start the command line kernel and you type fload makewin
 
 
 To make any changes to the FORTH you just edit the FKERNEL and other files, especially WINDOWS

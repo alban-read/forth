@@ -83,6 +83,12 @@ The assembler supported is classic RISC
 
 
 
+## Recent History Summary
+
+### Reverse order newest first.
+
+Added orange coloured cursor to the edit window, handle caret events, avoid drawing on other peoples windows, fixed bug that sometimes stopped the icon from displaying in the icon bar.
+
 
 
 

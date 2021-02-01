@@ -4,11 +4,12 @@
 
 This RISC OS FORTH by Martin Läuter is inspired by Win32Forth by Andrew McKewan and Tom Zimmer
 
-I updated this ever so slightly to get it to work on my 200Mhz RISC PC back in the day.
+- I updated this ever so slightly to get it to work on my 200Mhz RISC PC back in the day.
 
-I still run RISC OS; and run this FORTH; these days on a ~~1.5Ghz~~ 2.35Ghz processor. 
+- I still enjoy RISC OS; and still use this FORTH; these days on a ~~1.5Ghz~~ 2.35Ghz processor. 
 
-Presently has some bugs with the CARET display.
+- Most recently tested with RISC OS version 5.28 on PI.
+
 
 
 Selfie 

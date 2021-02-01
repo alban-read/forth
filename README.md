@@ -6,7 +6,7 @@ This RISC OS FORTH by Martin Läuter is inspired by Win32Forth by Andrew McKewan
 
 I updated this ever so slightly to get it to work on my 200Mhz RISC PC back in the day.
 
-I still run RISC OS; and run this FORTH; these days on a ~~1.5Ghz~~ 2.4Ghz processor. 
+I still run RISC OS; and run this FORTH; these days on a ~~1.5Ghz~~ 2.35Ghz processor. 
 
 Presently has some bugs with the CARET display.
 
@@ -26,18 +26,16 @@ These can be found in the WF ZIP file for RISC OS.
 This FORTH is very interesting since (true to its Win32Forth roots) it is a meta compiler.
 
 From a working kernel this FORTH is able to recompile itself; this is true to the FORTH philosophy; 
-and different from many micro forths where to bootstrap you needed to use an assembler (if you were lucky); 
+and different from many micro (z80, 6502) forths where to bootstrap you needed to use an assembler (if you were lucky); 
 or enter the hex into a machine monitor and patch it (I have done that, fun three weeks.)
 
 The idea being  that as long as you have a computer running this FORTH `all` you need to do is re-write the assembler for another architecture; rewrite some kernel code words in that assembler; and re-generate the kernel to the new target system using the meta compiler.
 
-Thanks to the meta-compiler once you have FORTH; FORTH can build the next FORTH, for ever.
+Thanks to the meta-compiler once you have FORTH; FORTH can build your next FORTH, for ever.
 
-I guess that the original author may have done that; probably starting from the PC version.
+I guess that the original author may have done that; probably starting from the PC version this descends from.
 
-This has been useful over the years; even when updating to run on new versions of the Systems that run RISC OS.
-
-In any event I still enjoy and use this FORTH; for poking around my ARM based system.
+This capability has been useful over the years; when updating to run on new versions of the Systems that run RISC OS.
 
 The original author granted permissions to copy and use the software; see !HELP file.
 

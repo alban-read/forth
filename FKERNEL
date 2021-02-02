@@ -686,6 +686,19 @@ code +!        ( n ad -- )
   str r2, [ r1 ]
 next c;
 
+code u/ ( n n1 -- n2 )
+ mov r1, tos
+ ldmfd sp !, { r0 }
+ udiv tos, r0, r1
+next c;
+
+code s/ ( n n1 -- n2 )
+ mov r1, tos
+ ldmfd sp !, { r0 }
+ sdiv tos, r0, r1
+next c;
+
+
 code c@        ( ad -- c ) \ Fetch an 8 bit value from addr.  Fill high part with zeros.
   ldrb tos, [ tos ]
 next c;
@@ -975,6 +988,18 @@ next c;
 code u2/       ( n1 -- n2 )
   mov tos, tos, lsr # 1
 next c;
+
+code 10*      ( n1 -- n2 )
+ mov r0, tos, lsl # 1
+ add tos, tos, r0, lsl # 3
+next c;
+
+code ~10/       ( n1 -- n2 )
+ mov r0, # 205
+ mul r1, r0, tos
+ mov tos, r1, lsr # 11
+next c;
+
 
 code 1+        ( n1 -- n2 )
   add tos, tos, # 1
@@ -1444,6 +1469,8 @@ next c;
 : ad>of ( to from -- off )
     8 + - 2 rshift &ffffff and ;
 
+
+
 create pocket         260 allot
 create cur-file       260 allot
 create temp$          260 allot
@@ -1673,8 +1700,8 @@ code %_key?   ( -- f )
   mov r2, # &ff
   swi " OS_Byte"
   teq r1, # 0
-  0= if
-    mov r0, # &b1
+  0= if \ not execing from file.
+    mov r0, # &b1 \ input device
     mov r2, # &ff
     swi " OS_Byte"
     rsb r1, r1, # &ff
@@ -2789,9 +2816,14 @@ defer number,
 ' _number, is number,
 
 
-\ supress cursor during execution
+
 defer cursor-off
  ' noop is  cursor-off
+
+defer cursor-on
+ ' noop is  cursor-on
+
+
 
 : _interpret
     cursor-off
@@ -2818,7 +2850,7 @@ defer interpret
 
 : wait
     key 27 =
-    if ." ok" abort then ;
+    if ." ok" abort cursor-on then ;
 
 : start/stop
     key? if wait wait then ;
@@ -3003,12 +3035,13 @@ variable .smax      8 .smax !-t
       begin   cr ['] query-interpret catch  ?dup 0=
       while   state @ 0=
         if      ."  ok"  depth .smax @ min 0
-          ?do  [char] . emit  loop
-        then
+          ?do  [char] . emit loop
+        then  cursor-on
       repeat
       dup 1+  ( no message on abort )
       if  console message  then
       reset-stacks
+      cursor-on
     again ;
 
 
@@ -3087,6 +3120,12 @@ code OS_Heap ( misc ^blk ^heap reason -- r3 r2 f )
   mvn vs tos, # 0
   mov vc tos, # 0
   stmfd sp !, { r2, r3 }
+next c;
+
+
+code vsync
+  mov r0, # 19
+  swi " OS_Byte"
 next c;
 
 0 local l0

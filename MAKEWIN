@@ -126,6 +126,8 @@ config" config"
 
 : turn-cursor-off HideCaret: mainwindow ;
 
+: turn-cursor-on ShowCaret: mainwindow ;
+
 
 \ ........ set the default system access strings ..........
 
@@ -143,6 +145,7 @@ align
                 center: mainwindow start: mainwindow
 
                 [']  turn-cursor-off is cursor-off
+                [']  turn-cursor-on is cursor-on
 
                 window-io
                 cls  hello$ count type

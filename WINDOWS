@@ -44,10 +44,6 @@ comment:
 
 comment;
 
-code vsync
-  mov r0, # 19
-  swi " OS_Byte"
-next c;
 
 code -swap ( n1 n2 n3 -- n2 n1 n3 )
  ldmfd sp !, { r1, r2 }
@@ -129,17 +125,15 @@ next c;
 : bcol 18 OS_WriteC 0 OS_WriteC 128 + OS_WriteC ;
 
 
-\ fake a cursor.
-\ square at x y of size w
-code square ( x y w -- )
+code drawcursor ( x y x1 y1 --  )
  mov r3, tos
- ldmfd sp !, { r4, r5, tos }
+ ldmfd sp !, { r4, r5, r6, tos }
  mov r0, # 4
- mov r1, r5
- mov r2, r4
+ mov r1, r4
+ mov r2, r3
  swi " OS_Plot"
- add r1, r5, r3
- add r2, r4, r3
+ mov r1, r6
+ mov r2, r5
  mov r0, # 101
  swi " OS_Plot"
 next c;
@@ -550,6 +544,12 @@ int xcur
 int ycur
 int curon
 
+: Update+Clear ( x1 y1 x2 y2 -- )
+    -32* 32 + swap 16* 32 + 2swap 1+ -32* swap 16*
+    Hwnd Wimp_ForceRedraw
+     ;
+
+
 : hascaret?
    caretpos Wimp_GetCaretPosition
    caretpos @ hWnd =
@@ -565,11 +565,13 @@ int curon
 
 :m On_LoseCaret: ( block )
    0 to curon
+    xcur ycur xcur 1+ over Update+Clear
    drop
 ;m
 
 :m On_GainCaret: ( block )
    -1 to curon
+    xcur ycur xcur 1+ over Update+Clear
    drop
 ;m
 
@@ -588,6 +590,7 @@ int curon
 
 :m On_Click: ( block -- )
    GainCaret: self
+   xcur ycur xcur 1+ over Update+Clear
    On_Click: super
 ;m
 
@@ -652,17 +655,18 @@ next c;
   state @ 0 =
   and and and and if
     7 gcol
+
     xmin xcur 16 * + 2 +
     ymax ycur 1+ -32* + 4 +
-    11 square
+    xmin xcur 16 * + 20 +
+    ymax ycur 1+ -32* + 12 -
+
+    drawcursor
     0 gcol
   then  ;
 
 
-: Update+Clear ( x1 y1 x2 y2 -- )
-    -32* 32 + swap 16* 32 + 2swap 1+ -32* swap 16*
-    Hwnd Wimp_ForceRedraw
-     ;
+
 
 : DoRectangle
     cols 2r@ drop
@@ -679,7 +683,7 @@ next c;
  ;
 
 :m On_Redraw: ( block -- )
-     vsync \ may not be needed now.
+    \ vsync \ may not be needed now.
      dup>r Wimp_RedrawWindow
      begin while
        DoRectangle
@@ -717,7 +721,7 @@ next c;
       ;m
 
 : Scroll ( -- )
-       vsync
+
        &thescreen cols + &thescreen rows 1- cols * dup>r cmove
        &thescreen r> + cols blank
        rows 1- -32* 0 -32 cols 16* rows -32* 0 hWnd Wimp_BlockCopy

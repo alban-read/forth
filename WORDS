@@ -52,7 +52,7 @@ create words-pocket 260 allot
                         else    2drop
                         then
                         @ swap !
-                        start/stop
+                        start/stop cursor-off
                 repeat  2drop
         else    drop
         then    vocsave off ;

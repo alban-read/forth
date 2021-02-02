@@ -70,7 +70,7 @@ defer t!        forth ' !       assembler is t!
 defer ?>mark            defer ?>resolve
 defer ?<mark            defer ?<resolve
 
-: br>ad  ( here op -- ad )  
+: br>ad  ( here op -- ad )
     8 lshift dup 0< if 6 rshift &fc000000 or else 6 rshift then + 8 + ;
 
 : ad>of  ( to from -- of )
@@ -113,9 +113,9 @@ false value ll-used?
   cell+ @ dup 0= IF \ if nothing to resolve
     drop exit       \   then exit
   THEN
-  BEGIN             \ stack contains directory address of 
+  BEGIN             \ stack contains directory address of
                     \   displacement to be resolved
-    dup t@ >r 
+    dup t@ >r
     here over ad>of
     r@ &ff000000 and or
     over t!
@@ -163,7 +163,7 @@ false value ll-used?
 
 FORTH DEFINITIONS
 
-: DOASSEM       ( --- ) 
+: DOASSEM       ( --- )
                 0 ['] DROP A;!
                 <ADOPCODE2> @ <ADOPCODE1> !
                 <DOIT2> @ <DOIT1> !
@@ -185,7 +185,7 @@ synonym CLEAR_LABELS LLAB-INIT
                 -1 is LL-GLOBAL? ;
 
 : LABEL         ( NAME --- )            \ Really just a constant addr
-                SETASSEM CREATE ; 
+                SETASSEM CREATE ;
 
 : CODE          ( NAME --- )
                 LABEL -4 DP +! HIDE ;
@@ -210,14 +210,14 @@ synonym C; END-CODE
  4 reg R4             5 reg R5          6 reg R6          7 reg R7
  8 reg R8             9 reg R9         10 reg R10        11 reg R11
 12 reg R12           13 reg R13        14 reg R14        15 reg R15
-synonym R0,  R0     synonym R1,  R1    synonym R2,  R2   synonym R3,   R3  
-synonym R4,  R4     synonym R5,  R5    synonym R6,  R6   synonym R7,   R7  
-synonym R8,  R8     synonym R9,  R9    synonym R10, R10  synonym R11,  R11 
-synonym R12, R12    synonym R13, R13   synonym R14, R14  synonym R15,  R15 
-synonym PC   R15    synonym PC,  R15   synonym LINK R14  synonym LINK, R14 
-synonym SP   R13    synonym SP,  R13   synonym RP   R12  synonym RP,   R12 
-synonym IP   R11    synonym IP,  R11   synonym TOS  R10  synonym TOS,  R10 
-synonym OP   R9     synonym OP,  R9  
+synonym R0,  R0     synonym R1,  R1    synonym R2,  R2   synonym R3,   R3
+synonym R4,  R4     synonym R5,  R5    synonym R6,  R6   synonym R7,   R7
+synonym R8,  R8     synonym R9,  R9    synonym R10, R10  synonym R11,  R11
+synonym R12, R12    synonym R13, R13   synonym R14, R14  synonym R15,  R15
+synonym PC   R15    synonym PC,  R15   synonym LINK R14  synonym LINK, R14
+synonym SP   R13    synonym SP,  R13   synonym RP   R12  synonym RP,   R12
+synonym IP   R11    synonym IP,  R11   synonym TOS  R10  synonym TOS,  R10
+synonym OP   R9     synonym OP,  R9
 synonym Rn,  Rn
 
 : ccode
@@ -275,7 +275,7 @@ synonym ]! !,
       if &f0 and or
         <#> @
         if swap dup 0> over 33 < and 1 assabort
-          &1f and 7 lshift or 
+          &1f and 7 lshift or
         else <OIS> @ 0= 1 assabort
           lastreg 4 lshift 1+ 4 lshift or
         then
@@ -295,15 +295,15 @@ synonym ]! !,
     or ;
 
 : rotl
-   0 do dup 31 rshift swap 1 lshift or loop ; 
+   0 do dup 31 rshift swap 1 lshift or loop ;
 
 : valid? ( imm -- imm' )
-   false swap 16 0 
-   do dup &ffffff00 and 0= 
-     if nip i true rot leave 
-     then  2 rotl 
+   false swap 16 0
+   do dup &ffffff00 and 0=
+     if nip i true rot leave
+     then  2 rotl
    loop swap 4 assabort
-   &20000 rot or 8 lshift or ; 
+   &20000 rot or 8 lshift or ;
 
 create adop
   &e3a00000 , &e3800000 , \ mov rh, # x     \ orr rd, rh, # x
@@ -339,7 +339,7 @@ comment ö
     false rot 16 0
     do dup &ffffff00 and i in2
       if nip &ff and
-        swap i + 15 and 8 lshift or 
+        swap i + 15 and 8 lshift or
         adop adind + cell+ @ or adreg 2+ c@ 12 lshift or adreg 1+ c@ 16 lshift or
         , true dup leave
       then drop 2 rotl
@@ -368,16 +368,16 @@ comment ö
     8 to adind       negate 1-  0 in2  ?exit drop
    16 to adind  adnr here 8 + - 0 in2  ?exit
    24 to adind       negate     0 in2  ?exit drop
-   true abort" HMPH" ; 
+   true abort" HMPH" ;
 
-: 1m ( ad -- ) 
+: 1m ( ad -- )
     align
     @ dup &f and dup <typ> ! 2 =
     if &100000 or <P> @ or then
     &fffffff0 and
     <S> @ or
     cc>
-    <OIS> off  shift> 
+    <OIS> off  shift>
     <#REGS> @ 2 <typ> @ 0= - >=    \ ? Register als letzter Operand
     if lastreg or
     else <SH> @ 0= 3 assabort
@@ -414,6 +414,8 @@ comment ö
     align
     create ,
     does> ['] 2m a;! a; ;
+
+
 
 : 3m
     align
@@ -468,7 +470,7 @@ comment ö
       swap here 8 + -
       dup 0< if negate swap &ff7fffff and swap then
       dup &1000 < 4 assabort
-      or 
+      or
     then
     , reset ;
 
@@ -488,11 +490,11 @@ c;
 
 : 6m
     align
-    @ 
+    @
     cc>
     <X> @ or
-    dup 1 and swap &fffffffe and swap 
-    if swap 
+    dup 1 and swap &fffffffe and swap
+    if swap
     else -rot "f>c 6m1
     then
     &ffffff and or , reset ;
@@ -518,6 +520,29 @@ c;
 &e5900000 5mi LDR            &e5d00000 5mi LDRB
 &e5800000 5mi STR            &e5c00000 5mi STRB
 &ef000000 6mi SWI            &ef000001 6mi SWI#
+
+\ Some ARMs support divide in hardware.
+
+: 7m
+    align
+    @
+    <S> @ or
+    cc>
+    lastreg 08 lshift or
+    lastreg or
+    lastreg 16 lshift or
+    , reset ;
+
+ : 7mi
+    align
+    create ,
+    does> ['] 7m a;! a; ;
+
+
+&e730f010 7mi UDIV           &e710f010 7mi SDIV
+
+
+
 : adr 0 ['] (adr) a;! a; ;
 
 : ?condition
@@ -540,9 +565,9 @@ c;
 &6a000000 CONSTANT OV<> &7a000000 CONSTANT OV
 
 : BEGIN ( - f a )           A; ?<MARK ;
-: UNTIL ( f a n - )         >R A; R> ?<RESOLVE A; ;  
+: UNTIL ( f a n - )         >R A; R> ?<RESOLVE A; ;
 : AGAIN ( f a - )           &ea000000 UNTIL ;
-: IF ( n - f A )            >R A; R> ?>MARK A; ;        
+: IF ( n - f A )            >R A; R> ?>MARK A; ;
 : THEN ( f A - )            A; ?>RESOLVE ;
 : ELSE ( f A - f A )        &ea000000 IF 2SWAP THEN ;
 : REPEAT ( f A f a - )      A; AGAIN THEN ;
@@ -570,6 +595,8 @@ assembler DEFINITIONS
 ONLY FORTH DEFINITIONS ALSO
 
 DECIMAL
+
+
 
 \s
 \  And here is how to use the Assembler words:

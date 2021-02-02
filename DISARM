@@ -49,7 +49,7 @@ DEFER T@   ( a -- w )
 : .sh ( nr -- )
     2* 2* " lsl lsr asr ror " drop + 4 type ;
 
-: reg$ ( -- adr ) 
+: reg$ ( -- adr )
     symbolic @
     if   " r0  r1  r2  r3  r4  r5  r6  r7  r8  op  tos ip  rp  sp  linkpc  "
     else " r0  r1  r2  r3  r4  r5  r6  r7  r8  r9  r10 r11 r12 r13 r14 r15 "
@@ -66,6 +66,7 @@ DEFER T@   ( a -- w )
 
 : spec ( inst -- )
     0 to flag
+
     dup &fc00000 and 0=
     if dup &200000 and if ." mla " -1 to flag else ." mul " then
       dup &100000 and if ." s " then
@@ -81,6 +82,8 @@ DEFER T@   ( a -- w )
     then ;
 
 : dpi ( inst -- )
+
+
     dup &2000000 and 0= if
       dup 4 rshift dup 3 rshift and 1 and
       if spec exit then
@@ -90,7 +93,7 @@ DEFER T@   ( a -- w )
     + 4 type
     dup &100000 and if ." s " then
     .cond 18 col
-    flag 8 11 between 0= 
+    flag 8 11 between 0=
       if 12 .reg .,
         dup &f000f000 and &e000f000 = to stopnow
       then
@@ -110,16 +113,16 @@ DEFER T@   ( a -- w )
       else drop
       then
     then ;
-    
+
 : sdt0 ( inst -- inst )
     dup &2000000 and
     if ., dup &800000 and 0= if ." -" then
       0 .reg dup 5 rshift 3 and dup 0=
-      if over &f80 and 
+      if over &f80 and
         if ., .sh dup 7 rshift 31 and ." # " . else drop space then
       else ., .sh dup 7 rshift 31 and ." # " .
       then
-    else   
+    else
       dup &fff and
       if ." , # " dup &800000 and 0= if ." -" then
          dup &fff and .
@@ -127,7 +130,28 @@ DEFER T@   ( a -- w )
       then
     then ;
 
+
+: hex. base @ swap u. base ! ;
+
+
 : sdt ( inst -- )
+
+  dup &FFF0F0F0 and &E730F010 =  if
+      ." udiv "
+      \ dup &100000 and if ." s " then
+      .cond 18 col
+      8 .reg ., 0 .reg ., 16 .reg
+      drop exit
+   then
+
+   dup &FFF0F0F0 and &e710f010 = if
+      ." sdiv "
+      \ dup &100000 and if ." s " then
+      .cond 18 col
+      8 .reg ., 0 .reg ., 16 .reg
+      drop exit
+    then
+
     dup &100000 and
     if ." ldr" dup &f000 and &f000 = if dup 28 rshift &e = to stopnow then
     else ." str" then
@@ -139,18 +163,19 @@ DEFER T@   ( a -- w )
     dup &1000000 and
     if sdt0 ." ]"
       &200000 and if ." !" then
-    else ."  ]" sdt0 
+    else ."  ]" sdt0
       &200000 and if ."  t" then
     then ;
 
 : bdt ( inst -- )
+
     dup 22 rshift 6 and over &100000 and
     if ." ldm" over dup &8000 and swap 28 rshift &e = and to stopnow
     else ." stm" 6 swap - then
     " fafdeaed" drop + 2 type space
     .cond 18 col
     16 .reg dup &200000 and if ."  !" then ." , { "
-    0 to flag 
+    0 to flag
     16 0 do dup 1 and
       if flag if ., else -1 to flag then
          i .#reg
@@ -163,8 +188,8 @@ DEFER T@   ( a -- w )
     if ." l" else dup 28 rshift &e = to stopnow then space
     .cond 18 col
     dup 8 lshift 0< if &ff000000 or else &ffffff and then 2 + cells cp @ +
-    dup maxcp > if dup to maxcp then 
-    dup ['] unnest = stopnow or to stopnow 
+    dup maxcp > if dup to maxcp then
+    dup ['] unnest = stopnow or to stopnow
     u. ;
 
 : cop ( inst -- ) drop ." Coprocessor instruction" ;
@@ -174,8 +199,8 @@ create int0   -4 dp +!
   &e8bd0006 ,  \ ldmfd sp !, { r1, r2 }
   &ef000038 ,  \ swi " OS_SWINumberToString"
   &e1a0a002 ,  \ mov tos, r2
-  &e49bf004 ,  \ next  
-  
+  &e49bf004 ,  \ next
+
 : int ( inst -- )
     dup &01000000 and
     if ." swi " .cond 18 col ascii " emit space
@@ -195,7 +220,7 @@ forth definitions
 : DIS   ( a -- )           \ disassemble from address
         [ DISARM ] dup to maxcp CP !
         base @ >r HEX
-        0 to STOPNOW   
+        0 to STOPNOW
         .CODE-NAME
         BEGIN   CP @ ." (" DUP 6 U.R ." ) " INST
 \                CP @ OVER - 2DUP SPACE DUMP| 69 COL TYPE_

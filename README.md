@@ -84,12 +84,15 @@ The forth interpreter NEXT is only one instuction on the ARM 32.
 
 - the built in portable assembler implements just the ARM2 instructions as supported by the Archimedes.  
 
-After all; who needs a fancy divide instruction or floating point.
-
-
 ## Recent History Summary
 
-### Reverse order newest first.
+
+
+### In Reverse order - newest first.
+
+Added hardware division (sdiv and udiv) instructions to the assembler (PASM); added s/ and u/ words to use these new instructions.
+These instructions are not available on older ARM systems; all the older subtract and shift division words remain untouched.
+
 
 Added orange coloured cursor to the edit window, handle caret events, avoid drawing on other peoples windows, fixed bug that sometimes stopped the icon from displaying in the icon bar.
 

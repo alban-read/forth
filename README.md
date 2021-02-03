@@ -90,8 +90,12 @@ The forth interpreter NEXT is only one instuction on the ARM 32.
 
 ### In Reverse order - newest first.
 
+Sped up compilation of files; Forth compiles code into its dictionary.  This means the ARM code cache needs to be synced with the ARM data cache.
+This change tells the OS the region to update - from start of FORTH memory &8000 to the end of FORTH memory (WimpSlot) this massively speeds up compilation if the memory allocated is limited; the WimpSlot Max is set to 256K which gives 128K free for new user code; enough to load the FKERNEL twice (e.g. to meta compile it.)  Speed increase for fload meta is massive from 00.06.090 to 00.00.059.
+
 Added hardware division (sdiv and udiv) instructions to the assembler (PASM); added s/ and u/ words to use these new instructions.
 These instructions are not available on older ARM systems; all the older subtract and shift division words remain untouched.
+s/ is 4-5 times faster than /.
 
 
 Added orange coloured cursor to the edit window, handle caret events, avoid drawing on other peoples windows, fixed bug that sometimes stopped the icon from displaying in the icon bar.

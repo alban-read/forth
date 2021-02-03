@@ -655,18 +655,13 @@ next c;
   state @ 0 =
   and and and and if
     7 gcol
-
     xmin xcur 16 * + 2 +
     ymax ycur 1+ -32* + 4 +
     xmin xcur 16 * + 20 +
     ymax ycur 1+ -32* + 12 -
-
     drawcursor
     0 gcol
   then  ;
-
-
-
 
 : DoRectangle
     cols 2r@ drop

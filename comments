@@ -1,7 +1,41 @@
-It is fun that FORTH interpreters next step on an ARM processor (32 bit) is only one instruction.
+
+## ARM fun
+
+It is fun that the FORTH next macro on an ARM32 processor is only one instruction.
 
 ldr pc, [ ip ], # 4
+
+## Package this
 
 To zip this package for redistribution on RISCOS
 
 zip wf/zip !WimpForth -r
+
+## Caret handling
+
+RISC OS window focus works around gaining the CARET; which is also used to display an input sprite.
+
+This seemed to change in 5.28 so I am now faking a text cursor in the edit window.
+
+## Recent assembler instructions
+
+The assembler PASM supports integer instructions mainly from the ARM2 in the Archimedes.
+
+Some new ARM processors support integer divide instructions in hardware.
+
+I have added these as udiv and sdiv to the assembler along with u/ and s/ for unsigned and signed division.
+
+These are around 4-5 times faster than the standard / which is defined in software using shifts and subtracts and also does a lot more checking of parameters.
+
+## Size of WimpSlot matters (now)
+
+Forth compiles code into its dictionary.
+This means the ARM code cache needs to be synced with the ARM data cache.
+
+The synchronize areas code has been changed to select from start of FORTH memory &8000 to the end of FORTH memory (WimpSlot) rather than everything; this massively speeds up compilation when the memory used is limited; the WimpSlot Max is set to 256K which gives 128K free for new user code; enough to load the FKERNEL twice (e.g. to meta compile it.)
+
+Recompilation of the kernel with a 640K WimpSlot takes 6+ seconds; with a 256K WimpSlot it becomes more or less instant 00.00.059
+
+This is because the cache synchronization is slow; and has to be run every time a word is added to the dictionary; it is faster when it has to do less work.
+
+Note you can malloc memory on the heap for data; that is not impacted by this.

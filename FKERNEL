@@ -19,6 +19,7 @@ vocabulary forth
 
 forth definitions meta
 
+
 label dovar
   stmfd sp !, { tos }
   bic tos, link, # &fc000003
@@ -143,11 +144,21 @@ code unnest    ( -- ) \ Same as EXIT
   ldmfd rp !, { ip }
 next c;
 
-\ AR: a forth compiler is self-modifying code.
-\ this call clears the cache.
+\ AR: the forth compiler is self-modifying code.
+
+
 code syncCode
+ mov r0, # 1
+ mov r1, # &8000 \ mem start
+ adr r3, # &8004 \ mem end .. wants to be 256K ish
+ ldr r2, [ r3 ]
  swi " OS_SynchroniseCodeAreas"
 next c;
+
+
+code noop      ( -- ) \  Does nothing  (No-Operation)
+next c;
+
 
 code lit
   stmfd sp !, { tos }
@@ -158,9 +169,6 @@ code execute   ( cfa -- )  \ Execute the word whose CFA is on the stack.
   mov r0, tos
   ldmfd sp !, { tos }
   mov pc, r0 c;
-
-code noop      ( -- ) \  Does nothing  (No-Operation)
-next c;
 
 code pause
   mov r0, r0
@@ -2815,15 +2823,11 @@ next c;
 defer number,
 ' _number, is number,
 
-
-
 defer cursor-off
  ' noop is  cursor-off
 
 defer cursor-on
  ' noop is  cursor-on
-
-
 
 : _interpret
     cursor-off

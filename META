@@ -5,7 +5,11 @@
 \ SYS-WARNING-OFF        \ don't warn about use of system words
 \ echo on
 
+
+time-reset
+
 ONLY FORTH ALSO DEFINITIONS
+
 
 ANEW METACOMPILER
 NOSTACK
@@ -34,6 +38,8 @@ VOCABULARY FORWARD      \ forward references
 : IN-FORTH        ONLY FORTH ALSO DEFINITIONS  ;
 : IN-META         ONLY FORTH ALSO META ALSO DEFINITIONS ;
 : IN-TRANSITION   ONLY FORWARD ALSO TARGET ALSO TRANSITION ;
+
+
 
 IN-META
 
@@ -541,7 +547,6 @@ T: ;   [TARGET] UNNEST   [TRANSITION] [   T;
 
 \ And we're off.....
 
-
 CR .( Metacompiler Loaded )
 
 \ ======================================================================
@@ -578,4 +583,9 @@ defer-list-t @ defer-list !-t
 IMAGE HERE-T ORIGIN - TARGET-SAVE kernel
 
 CR HERE-T ORIGIN - .  .( bytes written to file kernel )
+
+.elapsed
+
+
+
 

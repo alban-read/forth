@@ -87,18 +87,17 @@ The forth interpreter NEXT is only one instuction on the ARM 32.
 
 ### In Reverse order - newest first.
 
-
-Sped up compilation of files; Forth compiles code into its dictionary.  
+This change speeds up compilation of files; recall that FORTH compiles code into its dictionary.  
 This means the ARM code cache needs to be synced with the ARM data cache.
-This change tells the OS the region to update - from start of FORTH memory &8000 to the end of FORTH memory (WimpSlot) this massively speeds up compilation if the memory allocation is small; the WimpSlot Max is set to 256K which gives 128K free for new user code; enough to load the FKERNEL twice (e.g. to meta compile it.)  Speed increase for fload meta is massive from 00.06.090 to 00.00.059.
-For RPC EMU which emulates a RISC PC StrongARM (on a PC or MAC) commenting out syncCode completely is faster. 
-
+An update happens every time a FORTH word is added; words are small; and words are only added to the end of the dictionary.
+So the update region is now set to the 8K below the dictionary pointer.
+Speed increase for fload meta on PI400 is massive going from 00.06.090 to 00.00.07 (from six seconds to essentially instant.)
+For RPC EMU which emulates a RISC PC (on a PC or MAC) commenting out syncCode completely is an option.
 
 Added hardware division (sdiv and udiv) instructions to the assembler (PASM); added s/ and u/ words to use these new instructions.
 These instructions are not available on older ARM systems; all the older subtract and shift division words remain untouched.
 s/ is 4-5 times faster than /.
-These are illegal instructions and will certainly crash on older hardware and on RPCEmu.
-
+These are illegal instructions and will certainly crash on older hardware including RPCEmu.
 
 
 Added orange coloured cursor to the edit window, handle caret events, avoid drawing on other peoples windows, fixed bug that sometimes stopped the icon from displaying in the icon bar.

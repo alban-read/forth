@@ -8,7 +8,7 @@ This RISC OS FORTH by Martin Läuter is inspired by Win32Forth by Andrew McKewan
 
 - I still enjoy RISC OS; and still use this FORTH; these days on a ~~1.5Ghz~~ 2.35Ghz processor. 
 
-- Most recently tested with RISC OS version 5.28 on PI 300 and TI, Also RPCEMU (RO D. 5.27)
+- Most recently tested with RISC OS version 5.28 on PI 300 and TI, Also RPCEmu (with Direct pack 5.27)
 
 
 

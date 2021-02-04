@@ -8,15 +8,13 @@ This RISC OS FORTH by Martin Läuter is inspired by Win32Forth by Andrew McKewan
 
 - I still enjoy RISC OS; and still use this FORTH; these days on a ~~1.5Ghz~~ 2.35Ghz processor. 
 
-- Most recently tested with RISC OS version 5.28 on PI.
+- Most recently tested with RISC OS version 5.28 on PI 300 and TI, Also RPCEMU (RO D. 5.27)
 
 
 
 Selfie 
 
 ![selfie](WimpForth.jpg)
-
-
 
 In theory all you need is the source and the Kernel file (which is a binary) to get started.
 
@@ -87,15 +85,20 @@ The forth interpreter NEXT is only one instuction on the ARM 32.
 ## Recent History Summary
 
 
-
 ### In Reverse order - newest first.
 
-Sped up compilation of files; Forth compiles code into its dictionary.  This means the ARM code cache needs to be synced with the ARM data cache.
-This change tells the OS the region to update - from start of FORTH memory &8000 to the end of FORTH memory (WimpSlot) this massively speeds up compilation if the memory allocated is limited; the WimpSlot Max is set to 256K which gives 128K free for new user code; enough to load the FKERNEL twice (e.g. to meta compile it.)  Speed increase for fload meta is massive from 00.06.090 to 00.00.059.
+
+Sped up compilation of files; Forth compiles code into its dictionary.  
+This means the ARM code cache needs to be synced with the ARM data cache.
+This change tells the OS the region to update - from start of FORTH memory &8000 to the end of FORTH memory (WimpSlot) this massively speeds up compilation if the memory allocation is small; the WimpSlot Max is set to 256K which gives 128K free for new user code; enough to load the FKERNEL twice (e.g. to meta compile it.)  Speed increase for fload meta is massive from 00.06.090 to 00.00.059.
+For RPC EMU which emulates a RISC PC StrongARM (on a PC or MAC) commenting out syncCode completely is faster. 
+
 
 Added hardware division (sdiv and udiv) instructions to the assembler (PASM); added s/ and u/ words to use these new instructions.
 These instructions are not available on older ARM systems; all the older subtract and shift division words remain untouched.
 s/ is 4-5 times faster than /.
+These are illegal instructions and will certainly crash on older hardware and on RPCEmu.
+
 
 
 Added orange coloured cursor to the edit window, handle caret events, avoid drawing on other peoples windows, fixed bug that sometimes stopped the icon from displaying in the icon bar.

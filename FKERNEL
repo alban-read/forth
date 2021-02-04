@@ -144,16 +144,6 @@ code unnest    ( -- ) \ Same as EXIT
   ldmfd rp !, { ip }
 next c;
 
-\ AR: the forth compiler is self-modifying code.
-
-
-code syncCode
- mov r0, # 1
- mov r1, # &8000 \ mem start
- adr r3, # &8004 \ mem end .. wants to be 256K ish
- ldr r2, [ r3 ]
- swi " OS_SynchroniseCodeAreas"
-next c;
 
 
 code noop      ( -- ) \  Does nothing  (No-Operation)
@@ -320,6 +310,21 @@ variable handler
 variable msg
 variable dp
 
+\ only sync the last few pages
+code syncCode
+  ldr r0, dp
+  mov r1, # 0
+  begin
+    tst r0, # 3
+  0<> while
+    strb r1, [ r0 ], # 1
+  repeat
+  mov r2, r0
+  sub r1, r0, # 8192
+  mov r0, # 1
+  swi " OS_SynchroniseCodeAreas"
+next c;
+
 code here
   stmfd sp !, { tos }
   ldr tos, dp
@@ -379,6 +384,7 @@ code align
   repeat
   str r0, dp
 next c;
+
 
 code aligned
   add tos, tos, # 3

@@ -4,24 +4,6 @@ WimpForth is a RISC OS FORTH created by Martin Läuter for the Acorn Archimedes.
 
 WimpForth runs under the RISCOS desktop and is a freeware Forth system. 
 
-Important features of WimpForth 
- * ANS compliant
- * source level debugger, decompiler
- * ARM assembler/disassembler 
- * object orientation like Yerk on the Macs teached the forthers
- * window, icon, control, dialog, menu... classes to
-   make programming Windows as easy and controllable as possible
- * variable number of threads in vocabularies
- * strong WORDS implementation
- * easy invocation of CLI commands, time control, system variables
- * local labels
- * Wimp interface
- * Drag and drop Filer->Forth window will load forth files.
- * reads normal text files with 16K buffer
- * full source included
- * low memory footprint.
-
-
 WimpForth is inspired by the public domain Win32Forth created by Andrew McKewan and Tom Zimmer
 
 Current status
@@ -129,8 +111,35 @@ These are illegal instructions and will certainly crash on older hardware includ
 
 Added orange coloured cursor to the edit window, handle caret events, avoid drawing on other peoples windows, fixed bug that sometimes stopped the icon from displaying in the icon bar.
 
+## Download
 
+There is a zip file included in this repo.
 
+## Details 
+
+Important features of WimpForth 
+ * ANS compliant
+ * source level debugger, decompiler
+ * ARM assembler/disassembler (not difficult to extend.)
+ * object orientation like Yerk on the Macs teached the forthers
+ * window, icon, control, dialog, menu... classes to
+   make programming Windows as easy and controllable as possible
+ * variable number of threads in vocabularies
+ * strong WORDS implementation
+ * easy invocation of CLI commands, time control, system variables
+ * local labels
+ * Wimp interface
+ * Drag and drop Filer->Forth window will load forth files.
+ * reads normal text files with 16K buffer
+ * full source included
+ * low memory footprint.
+
+limitations
+
+* is an interpreter, not an optimizing or subroutine threaded inlining compiler.
+* has integer words, does not support VFP, NEON or other ARM FP instructions.
+* does not support new complex ARM instructions.
+* not ported to Linux or Windows, depends on RISC OS. 
 
 
 

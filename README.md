@@ -2,13 +2,39 @@
 
 !WimpForth (Wimp being windows icons mouse and pointers)
 
-This RISC OS FORTH by Martin Läuter is inspired by Win32Forth by Andrew McKewan and Tom Zimmer
+WimpForth is a RISC OS FORTH created by Martin Läuter
+
+WimpForth runs under the RISCOS  desktop and is a freeware Forth system,
+
+Object orientated in the Wimp part and has full source included.
+
+Important features of WimpForth 
+
+ * ANS compliant
+ * source level debugger, decompiler
+ * ARM assembler/disassembler
+ * object orientation like Yerk on the Macs teached the forthers
+ * window, icon, control, dialog, menu... classes to
+   make programming them as easy AND controllable as possible
+ * variable number of threads in vocabularies
+ * strong WORDS implementation
+ * easy invocation of CLI commands, time control, system variables
+ * local labels
+ * Wimp interface
+ * Drag and drop Filer->Forth window will load forth files.
+ * reads normal text files with 16K buffer
+ * full source included
+
+
+WimpForth is inspired by the public domain Win32Forth created by Andrew McKewan and Tom Zimmer
 
 - I updated this ever so slightly to get it to work on my 200Mhz RISC PC back in the day.
 
-- I still enjoy RISC OS; and still use this FORTH; these days on a ~~1.5Ghz~~ 2.35Ghz processor. 
+- I still enjoy RISC OS; and still use and maintain this FORTH.
 
-- Most recently tested with RISC OS version 5.28 on PI 300 and TI, Also RPCEmu (with Direct pack 5.27)
+- These days, this runs on a ~~1.5Ghz~~ 2.35Ghz processor. 
+
+- Most recently tested with RISC OS version 5.28 on PI 300 and TI, Also with RPCEmu (with Direct pack 5.27)
 
 
 
@@ -86,6 +112,11 @@ The forth interpreter NEXT is only one instuction on the ARM 32.
 
 
 ### In Reverse order - newest first.
+
+
+Added a build script (makerpcemu) for users of RPCEmu.
+
+Fixed an issue with the ErrorBox test routine, that could crash the app.
 
 This change speeds up compilation of files; recall that FORTH compiles code into its dictionary.  
 This means the ARM code cache needs to be synced with the ARM data cache.

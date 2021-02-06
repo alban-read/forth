@@ -1,21 +1,16 @@
 # FORTH
 
-!WimpForth (Wimp being windows icons mouse and pointers)
+WimpForth is a RISC OS FORTH created by Martin Läuter for the Acorn Archimedes.
 
-WimpForth is a RISC OS FORTH created by Martin Läuter
-
-WimpForth runs under the RISCOS  desktop and is a freeware Forth system,
-
-Object orientated in the Wimp part and has full source included.
+WimpForth runs under the RISCOS desktop and is a freeware Forth system. 
 
 Important features of WimpForth 
-
  * ANS compliant
  * source level debugger, decompiler
- * ARM assembler/disassembler
+ * ARM assembler/disassembler 
  * object orientation like Yerk on the Macs teached the forthers
  * window, icon, control, dialog, menu... classes to
-   make programming them as easy AND controllable as possible
+   make programming Windows as easy and controllable as possible
  * variable number of threads in vocabularies
  * strong WORDS implementation
  * easy invocation of CLI commands, time control, system variables
@@ -24,18 +19,19 @@ Important features of WimpForth
  * Drag and drop Filer->Forth window will load forth files.
  * reads normal text files with 16K buffer
  * full source included
+ * low memory footprint.
 
 
 WimpForth is inspired by the public domain Win32Forth created by Andrew McKewan and Tom Zimmer
 
-- I updated this ever so slightly to get it to work on my 200Mhz RISC PC back in the day.
+Current status
 
-- I still enjoy RISC OS; and still use and maintain this FORTH.
+- Runs well on the new PI 400 with 4GB of memory and 2Ghz+ capable A72 processor.
 
-- These days, this runs on a ~~1.5Ghz~~ 2.35Ghz processor. 
-
-- Most recently tested with RISC OS version 5.28 on PI 300 and TI, Also with RPCEmu (with Direct pack 5.27)
-
+- Most recently tested with 
+   - RISC OS version 5.28 on PI 400
+   - RPCEmu (with Direct pack 5.27)
+   - Known to run on other RISC OS systems
 
 
 Selfie 

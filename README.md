@@ -8,7 +8,7 @@ WimpForth is inspired by the public domain Win32Forth created by Andrew McKewan 
 
 Current status
 
-- Runs well on the new PI 400 with 4GB of memory and 2Ghz+ capable A72 processor.
+- Runs well on RISC OS 5.28 on the new PI 400 with 4GB of memory and 2Ghz+ capable A72 processor.
 
 - Most recently tested with 
    - RISC OS version 5.28 on PI 400

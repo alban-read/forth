@@ -91,6 +91,8 @@ The forth interpreter NEXT is only one instuction on the ARM 32.
 
 ### In Reverse order - newest first.
 
+Added some benchmarks to benchmark the interpreter.
+These incidentally confirm that the A72 in the overclocked PI 400 is fast.
 
 Added a build script (makerpcemu) for users of RPCEmu.
 

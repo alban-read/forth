@@ -1,5 +1,6 @@
 \
 \ ANS Forth kernel for ARM 3 machines  Martin Läuter
+\
 \ modified for strongarm 2007 Alban Read - works on RiscPC and Iyonix and PI400
 \
 
@@ -122,6 +123,7 @@ labcreate docolp
 next c; meta
 
 variable defer-list
+
 variable loadfile      thisfile loadfile !-t
 
 code exitp
@@ -144,8 +146,6 @@ code unnest    ( -- ) \ Same as EXIT
   ldmfd rp !, { ip }
 next c;
 
-
-
 code noop      ( -- ) \  Does nothing  (No-Operation)
 next c;
 
@@ -155,7 +155,8 @@ code lit
   ldmfd ip !, { tos, pc }
 c;
 
-code execute   ( cfa -- )  \ Execute the word whose CFA is on the stack.
+\ Execute the word whose CFA is on the stack.
+code execute   ( cfa -- )
   mov r0, tos
   ldmfd sp !, { tos }
   mov pc, r0 c;
@@ -245,7 +246,8 @@ code (?do)     ( lim sta -- ) \ Primitive form of ?DO
   ldr ip, [ ip ]
 next c;
 
-code unloop    ( -- )  \ Clean up Return Stack so we can EXIT from DO-loop.
+\ Clean up Return Stack so we can EXIT from DO-loop.
+code unloop    ( -- )
   add rp, rp, # 12
 next c;
 
@@ -275,14 +277,14 @@ code bounds    ( n1 n2 --- n3 n4 )  \ Calculate limits used in DO-loop
   str r0, [ sp ]
 next c;
 
-code i         ( -- n ) \ get the current index of the innermost loop
+code i         ( -- n ) \ get index of the innermost loop
   stmfd sp !, { tos }
   ldr tos, [ rp ]
   ldr r0, [ rp, # 4 ]
   add tos, tos, r0
 next c;
 
-code j         ( -- n ) \ get the index of the second most inner loop.
+code j         ( -- n ) \ get index of the second most inner loop.
   stmfd sp !, { tos }
   ldr tos, [ rp, # 12 ]
   ldr r0, [ rp, # 16 ]
@@ -310,7 +312,8 @@ variable handler
 variable msg
 variable dp
 
-\ only sync the last few pages
+
+\ sync the last few pages
 code syncCode
   ldr r0, dp
   mov r1, # 0
@@ -335,6 +338,7 @@ code allot
   add r0, r0, tos
   str r0, dp
   ldmfd sp !, { tos }
+  ldr r0, dp
 next c;
 
 code compile,
@@ -620,23 +624,27 @@ code depth     ( -- n )
   mov tos, tos, asr # 2
 next c;
 
-code sp@       ( -- n ) \ Push the address of the top element on the stack (prior to push).
+\ Push the address of the top element on the stack (prior to push).
+code sp@       ( -- n )
   stmfd sp !, { tos }
   mov tos, sp
 next c;
 
-code sp!       ( n -- ) \ Set the parameter stack pointer to specified value.
+\ Set the parameter stack pointer to specified value.
+code sp!       ( n -- )
   mov sp, tos
   ldmfd sp !, { tos }
 next c;
 
-code rp@       ( -- ad ) \ Push the address of the top element of the return stack
-                           \ onto the parameter stack.
+
+\ address of the top element of the return stack
+code rp@       ( -- ad )
   stmfd sp !, { tos }
   mov tos, rp
 next c;
 
-code rp!       ( ad -- )  \ Set the return stack pointer to ad.
+\ Set the return stack pointer to ad.
+code rp!       ( ad -- )
   mov rp, tos
   ldmfd sp !, { tos }
 next c;
@@ -712,12 +720,11 @@ code s/ ( n n1 -- n2 )
  sdiv tos, r0, r1
 next c;
 
-
-code c@        ( ad -- c ) \ Fetch an 8 bit value from addr.  Fill high part with zeros.
+code c@        ( ad -- c )
   ldrb tos, [ tos ]
 next c;
 
-code c!        ( c ad -- ) \ Store the least significant 8 bits of char at the specified addr
+code c!        ( c ad -- )
   mov r0, tos
   ldmfd sp !, { r1, tos }
   strb r1, [ r0 ]
@@ -731,7 +738,8 @@ code c+!       ( c ad -- )
   strb r2, [ r1 ]
 next c;
 
-code na@       ( ad -- n )   \ Fetch a 32 bit value from non-aligned addr
+\ non aligned fetch
+code na@       ( ad -- n )
   ldrb r0, [ tos ]
   ldrb r1, [ tos, # 1 ]
   add r0, r0, r1, lsl # 8
@@ -741,7 +749,8 @@ code na@       ( ad -- n )   \ Fetch a 32 bit value from non-aligned addr
   add tos, r0, r1, lsl # 24
 next c;
 
-code na!       ( n ad -- )   \ Store value n into the non-aligned address addr
+\ non aligned store
+code na!       ( n ad -- )
   mov r0, tos
   ldmfd sp !, { r1, tos }
   strb r1, [ r0 ], # 1
@@ -764,13 +773,15 @@ code call@     ( ad -- cfa )
   add tos, tos, r0
 next c;
 
-code w@        ( ad -- n )   \ Fetch a 16 bit value from addr
+\ 16 bit (half word) fetch
+code w@        ( ad -- n )
   ldrb r0, [ tos ]
   ldrb r1, [ tos, # 1 ]
   add tos, r0, r1, lsl # 8
 next c;
 
-code sw@        ( ad -- n )   \ Fetch a 16 bit value from addr
+\ Fetch a 16 bit value from addr
+code sw@        ( ad -- n )
   ldrb r0, [ tos ]
   ldrb r1, [ tos, # 1 ]
   add tos, r0, r1, lsl # 8
@@ -778,7 +789,8 @@ code sw@        ( ad -- n )   \ Fetch a 16 bit value from addr
   mov tos, tos, asr # 16
 next c;
 
-code w!        ( n ad -- )   \ Store 16 bit value n into the address addr
+\ Store 16 bit value n into the address addr
+code w!        ( n ad -- )
   mov r0, tos
   ldmfd sp !, { r1, tos }
   strb r1, [ r0 ]
@@ -877,7 +889,8 @@ next c;
 : blank        ( ad cnt -- )
     bl fill ;
 
-code cmove     ( from to count -- ) \ moves block of memory beginning at from !!! traditional !!!
+ \ moves block of memory beginning at from !!! traditional !!!
+code cmove     ( from to count -- )
   mov s r3, tos
   ldmfd sp !, { r0, r1, tos } \ count, to from
   next eq
@@ -888,7 +901,8 @@ code cmove     ( from to count -- ) \ moves block of memory beginning at from !!
   0= until
 next c;
 
-code cmove>    ( from to count -- ) \ moves block of memory beginning at from+count-1 !!! traditional !!!
+\ moves block of memory beginning at from+count-1 !!! traditional !!!
+code cmove>    ( from to count -- )
   mov s r3, tos
   ldmfd sp !, { r0, r1, tos } \ count, to from
   next eq
@@ -1013,7 +1027,6 @@ code ~10/       ( n1 -- n2 )
  mul r1, r0, tos
  mov tos, r1, lsr # 11
 next c;
-
 
 code 1+        ( n1 -- n2 )
   add tos, tos, # 1
@@ -1605,6 +1618,17 @@ code +place     ( from cnt to -- ) \ append text to counted string
   0= until
 next c;
 
+\ store zero terminated text in memory
+code z!  ( to from  -- )
+  mov r0, tos
+  ldmfd sp !, { r1, tos }
+  begin
+   ldrb r3, [ r1 ], # 1
+   strb r3, [ r0 ], # 1
+   teq r3, # 0
+  0= until
+next c;
+
 code -trailing ( ad len -- ad len' )
   ldr r0, [ sp ]
   begin
@@ -1754,7 +1778,8 @@ defer key  ' _key is key
     7 emit ;
 defer beep   ' _beep is beep
 
-0 value accept-cnt                      \ current count of chars accepted
+0 value accept-cnt   \ current count of chars accepted
+
 : _accept      ( a1 n1 -- n2 )
     0 swap 0
     ?do     drop
@@ -2483,7 +2508,7 @@ defer find        ' (find) is find
 defer \n->crlf     ' 2drop is \n->crlf
 
 : ,"
-    [char] " parse here >r dup c,
+    [char] " parse here align >r dup c,
     dup allot r@ 1+ swap move 0 c, align r> count \n->crlf ;
 
 code (("))        ( -- c-string )
@@ -3132,7 +3157,6 @@ code OS_Heap ( misc ^blk ^heap reason -- r3 r2 f )
   stmfd sp !, { r2, r3 }
 next c;
 
-
 code vsync
   mov r0, # 19
   swi " OS_Byte"
@@ -3177,8 +3201,9 @@ here &8000 ad>of &ea000000 or coldstart !-t
   adr r1, base
   str r0, [ r1 ]
   b ' cold a;                   \ goto cold colon definition
-1024 retstack !-t
-1024 datstack !-t
+
+2048 retstack !-t
+2048 datstack !-t
 16384 filebuff !-t
 
 

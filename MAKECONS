@@ -22,14 +22,16 @@ fload utils           \ load other misc utility words
 fload args
 fload OS
 
-mark empty
-
-here fence !
-
-\ cur-file off            \ clear the default file
-\ cur-line off            \ clear the current line
 
 cr cr .( Extensions Loaded, ) count-words . .( words in dictionary) cr
+
+
+variable seed
+
+: initiate-seed ( -- )  74755 seed ! ;
+: random  ( -- n )  seed @ 1309 * 13849 + 65535 and dup seed ! ;
+: rnd ( n -- n ) random swap mod ;
+
 
 \ ****************************
 \ do something at boot time
@@ -45,11 +47,19 @@ hello+" Forth for Risc OS"
                 ?loading off                    \ we aren't loading initially
                 only forth also definitions
                 decimal
+                initiate-seed
                 0 to source-id                  \ not loading from a file yet
                 initialization-chain do-chain
-                cls     hello$ count type
+                4 bcolour cls  hello$ count type
                 cr .words ." words in the dictionary" ;
 
                ' hello is boot
+
+
+mark empty
+here fence !
+source-id close-file drop
+cur-file off            \ clear the default file
+cur-line off            \ clear the current line
 
 fsave FCONS

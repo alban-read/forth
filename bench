@@ -1,0 +1,9 @@
+fload bench.fib
+fload bench.sieve
+fload bench.matrix
+cr .( running Fib ten times.)
+run-fib
+cr .( running Sieve ten times.)
+run-sieve
+cr .( running Matrix ten times.)
+run-matrix

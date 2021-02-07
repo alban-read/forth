@@ -1,0 +1,18 @@
+cr .( Loading Fib benchmark...)
+
+: fib ( n1 -- n2 )
+  dup 2 < if
+   drop 1
+  else
+   dup
+   1- recurse
+   swap 2 - recurse
+   +
+ then ;
+
+: run-fib
+  time-reset
+  10 0 do
+   34 fib drop ." ."
+  loop
+  cr ." Fib " .elapsed cr ;

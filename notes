@@ -1,0 +1,28 @@
+Some common FORTH benchmarks
+
+Benchmarks were originally written for the 1990s 486 PC generation.
+Compared to which all systems tested below run like greased lightning.
+repeated 10 times now; for modern systems.
+
+Expectation
+WimpForth uses a threaded interpreter; words are compiled down to lists of addresses that are executed by a fast inner interpreter; this is the classic FORTH approach and makes for a fast and compact interpreter.
+Commercial FORTH systems are compilers where words are converted to machine code, inlined and optimized; compilers are much faster.
+
+
+
+!WimpForth 1.1 02/05/21
+
+You need WimpSlot in !Run set to a couple of megabytes for benchmarks.
+
+Compare your own (hopefully faster future) system with:-
+
+System RPCEmu	AMD3700X	5.27	at 3.7Ghz	Recompiler mode
+System RPI400	A72 		5.28	at 2.35Ghz
+System TI	A15 		5.28	at 1.5GHz
+
+	RPC		PI400		TI
+
+Fib 	00:21:052	00:06:028	00:
+Sieve 	00:18:030	00:04:043       00:
+Matrix	00:13:044	00:03:059	00:
+

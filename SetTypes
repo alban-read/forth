@@ -1,0 +1,5 @@
+SetType !RUN Obey
+SetType kernel Absolute
+SetType !Sprites Data
+SetType FWIN Absolute
+SetType FCONS Absolute

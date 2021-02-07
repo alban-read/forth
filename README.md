@@ -11,7 +11,7 @@ Current status
 - Runs well on RISC OS 5.28 on the new PI 400 with 4GB of memory and 2Ghz+ capable A72 processor.
 
 - Most recently tested with 
-   - RISC OS version 5.28 on PI 400
+   - RISC OS version 5.28 on PI 400 (recommended.)
    - RPCEmu (with Direct pack 5.27)
    - Known to run on other RISC OS systems
 
@@ -98,7 +98,7 @@ Added a build script (makerpcemu) for users of RPCEmu.
 
 Fixed an issue with the ErrorBox test routine, that could crash the app.
 
-This change speeds up compilation of files; recall that FORTH compiles code into its dictionary.  
+Made a cache sync change that speeds up compilation of files; recall that FORTH compiles code into its dictionary.  
 This means the ARM code cache needs to be synced with the ARM data cache.
 An update happens every time a FORTH word is added; words are small; and words are only added to the end of the dictionary.
 So the update region is now set to the 8K below the dictionary pointer.

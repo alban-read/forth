@@ -1,0 +1,59 @@
+\ Editor StrongEd support.
+
+cr .( Loading Editor support...)
+
+variable msg_block 160 allot
+
+code OS_CLI ( ad -- f )
+  mov r0, tos
+  swi x " OS_CLI"
+  mov vs tos, # 0
+  mvn vc tos, # 0
+next c;
+
+\ start the editor, assumes under $.apps
+: editor
+ z" startdesktoptask $.apps.!stronged " os_cli drop ;
+
+
+code send_user_message
+ mov r0, # 17
+ adr r1, # msg_block
+ mov r2, # 0
+ mov r3, # 0
+ swi " Wimp_SendMessage"
+next c;
+
+: edit-open
+  msg_block 160 erase
+  160 msg_block !
+  &43b00 msg_block 16 + !
+  0 msg_block 12 + !
+  z' StrongED_OpenDoc fkernel'
+  msg_block 20 + z!  ;
+
+\ edit word
+: ed ( <name> -- )
+  cur-file 260 erase
+  edit-open
+  .viewinfo
+  1+ msg_block 37 + z! drop
+  send_user_message ;
+
+\ edit filename
+: edit ( <file name> -- )
+  edit-open
+  bl word
+  pocket 1+ msg_block 37 + z! drop
+  send_user_message  ;
+
+
+\ NOTES
+\ http://stronged.torrens.org/man/misc/inter.html
+\ http://rickman.orpheusweb.co.uk/cookbk/sections/1440.html
+\ http://stronged.torrens.org/archive/2018/msg00427.html
+
+
+
+
+

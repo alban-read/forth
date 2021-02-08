@@ -2511,6 +2511,11 @@ defer \n->crlf     ' 2drop is \n->crlf
     [char] " parse here align >r dup c,
     dup allot r@ 1+ swap move 0 c, align r> count \n->crlf ;
 
+
+: ,'
+    [char] ' parse here align >r dup c,
+    dup allot r@ 1+ swap move 0 c, align r> count \n->crlf ;
+
 code (("))        ( -- c-string )
   stmfd sp !, { tos }
   ldmfd rp !, { tos }

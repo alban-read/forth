@@ -143,27 +143,12 @@ synonym .curfile .cur-file
 synonym .file    .cur-file
 
 \ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-\ old original version of $EXEC, superceeded by the following series of words
-\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-
-code OS_CLI ( ad -- f )
-  mov r0, tos
-  swi x " OS_CLI"
-  mov vs tos, # 0
-  mvn vc tos, # 0
-next c;
-
-: zEXEC         ( a1 -- f1 )
-                dup count + 0 swap c!         \ null terminate string
-                1+ OS_CLI ;
-
-\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 \       Multiple directory path search capability for file open
 \ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 : named-new$
     create max-path allot ;
 
-named-new$ &execbuf
+
 named-new$ &filebuf
     create &fpath   max-path allot      \ a static forth path buffer
            &fpath   off
@@ -399,58 +384,6 @@ create fsave-buf max-path allot
                 then    r>drop ;
 
 \ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-\       SHELL support with interpreted string replacement for selected words
-\       %FILENAME  %DIR  %LINE
-\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-
-: execbuf+      ( a1 n1 a2 -- ) \ append to the exec buffer
-                &execbuf 2dup c@ + 255 > abort" Too long for EXEC buffer"
-                +place ;
-
-true value new-prompt?
-
-                                \ Invoke a DOS command string with
-: $EXEC         ( a1 -- f1 )    \ preprocess for file and line parameters
-                                \ f1 = TRUE on error
-                base @ >r decimal
-                &execbuf off                    \ pre-zero the buffer
-                count
-                begin   2dup ascii % scan dup
-                while   2dup 2>r nip - execbuf+ 2r>
-                                over s" %FILENAME" tuck compare 0= >r
-                                over s" %filename" tuck compare 0= r> or
-                        if      new-prompt?
-                           if   &filebuf count "path-file
-                                if      cr ." File doesn't exist, create it? [Y/N] (N):"
-                                        key upc 'Y' <> abort" Aborting"
-                                then    execbuf+
-                           else &filebuf count execbuf+
-                           then
-                                9 /string               \ remove %FILENAME
-                        else
-                                over s" %DIR"      tuck compare 0= >r
-                                over s" %dir"      tuck compare 0= r> or
-                        if      &prognam count 2dup "to-pathend" nip -
-                                execbuf+
-                                4 /string       \ remove %LINE
-                        else
-                                over s" %LINE"     tuck compare 0= >r
-                                over s" %line"     tuck compare 0= r> or
-                        if      &linenum @ 0 <# #s #> execbuf+
-                                5 /string       \ remove %LINE
-                        else
-                                over 1 execbuf+
-                                1 /string       \ remove one % char
-                        then
-                        then
-                        then
-                repeat  nip - execbuf+
-\                cr &execbuf count type
-                &execbuf +NULL
-                &execbuf 1+ zEXEC
-                r> base ! ;
-
-\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 \   primitive utilities to support view, browse and edit of words and files
 \ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 
@@ -513,44 +446,9 @@ create loc-buf 260 allot
 true value ?win-error-enabled           \ initially errors are enabled
 
 defer win-abort ' abort is win-abort
-comment }
-: ?win-error    ( f1 -- )
-                0=
-                ?win-error-enabled and
-                if      false to ?win-error-enabled
-                        debug-io
-                        cr ." On Function: "
-                        r@ abs>rel 2 cells - @ .name
-                        ."  Windows Returned Error:"
-                        call GetLastError .
-                        win-abort
-                        restore-io
-                then    ;
-}
-\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
-\       A utility to allow invoking a DOS shell on a following commandline
-\ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 
-: os            ( -<string>- )
-                0 word $exec ;
-comment }
-create temp2$ 260 allot
 
-: copyfile      ( -<from to>- ) \ copy a file to a directory
-                temp$  max-handle erase
-                temp2$ max-handle erase
-                bl word count temp$  place
-                bl word count temp2$ place
-                temp2$ ?+\
-                temp$ count "to-pathend" temp2$ +place
-                cr ." Copying: " temp$  count type
-                cr ."      To: " temp2$ count type
-                false
-                temp2$ 1+ rel>abs
-                temp$  1+ rel>abs
-                Call CopyFile 0=
-                abort" The COPY Failed!" ;
-}
+
 \ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 \       more primitive utilities to support view, browse and edit
 \ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
@@ -599,26 +497,7 @@ create temp2$ 260 allot
 
 : linelist      ( n1 -- )
                 cur-file $locate ;
-comment }
-: view          ( -<name>- )    \ VIEW the source for a word
-                .viewinfo $browse ;
 
-synonym v view                  \ V is an synonym for VIEW
-
-: e             ( -<name>- )    \ EDIT the source for a word
-                .viewinfo $edit ;
-
-synonym ed e                    \ E is a synonym for EDIT
-
-: edit          ( -<filename>- ) \ EDIT a particular file
-                0 word c@
-                if      cur-line off
-                        0 pocket
-                else    cur-line @ cur-file
-                then    $edit ;
-
-synonym z edit                  \ Z is a synonym for EDIT
-}
 \ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 \       Utility to allow loading a file starting at a specified line number
 \ \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\

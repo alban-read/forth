@@ -21,6 +21,7 @@ fload pasm
 fload disarm
 fload utils           \ load other misc utility words
 fload args            \ local variable support
+fload ed
 
 
 \ Object oriented support

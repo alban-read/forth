@@ -116,6 +116,12 @@ defer message-off       ' noop is message-off
 : z"            ( -<text">- )
                 ?comp compile (z") ," ; immediate
 
+
+
+: z'            ( -<text">- )
+                ?comp compile (z") ,' ; immediate
+
+
 : z",           ( a1 n1 -- )
                 here over 2dup 2>r allot swap move
                 2r> \n->crlf

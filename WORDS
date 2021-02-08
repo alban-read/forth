@@ -57,6 +57,27 @@ create words-pocket 260 allot
         else    drop
         then    vocsave off ;
 
+: (top-25-words) ( voc -- )
+                dup voc#threads to w#threads
+                dup voc>vcfa call@
+                dup   doClass =         \ don't look through classes
+                swap do|Class = or 0=   \ don't look through classes
+        if      dup here 500 + w#threads cells move     \ copy vocabulary up
+                voc>vcfa vocsave !
+                begin   here 500 + w#threads largest dup words-cnt 25 < and
+                while   dup l>name nfa-count 2dup 255 min words-pad place
+                        words-pad ?uppercase count match?
+                        if      .voc-once
+                                type 20 #tab space 20 ?cr
+                                1 +to words-cnt
+                        else    2drop
+                        then
+                        @ swap !
+                        start/stop cursor-off
+                repeat  2drop
+        else    drop
+        then    vocsave off ;
+
 forth definitions
 
 : words         ( -<optional-name>- )
@@ -76,6 +97,26 @@ forth definitions
                 ." Displayed " words-cnt . ." of the "
                 count-words . ." words in the system."
                 r> base ! ;
+
+
+: latest-words   ( -<optional-name>- )
+                0 to words-cnt
+                words-pocket off
+                bl word ?uppercase c@
+                if      pocket count words-pocket place
+                        bl word ?uppercase drop
+                        voc-link @
+                        begin   dup vlink>voc
+                                (top-25-words) @ dup 0=
+                        until   drop
+                else    context @ (top-25-words)
+                then
+                base @ >r decimal
+                cr horizontal-line
+                ." Displayed latest " words-cnt . ." of the "
+                count-words . ." words in the system."
+                r> base ! ;
+
 
 only forth also
 

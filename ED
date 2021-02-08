@@ -29,7 +29,7 @@ next c;
   160 msg_block !
   &43b00 msg_block 16 + !
   0 msg_block 12 + !
-  z' StrongED_OpenDoc fkernel'
+  z' StrongED_OpenDoc '
   msg_block 20 + z!  ;
 
 \ edit word

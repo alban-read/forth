@@ -15,10 +15,13 @@ cr .( Loading WORDS...)
 
 only forth also hidden also definitions
 
-  variable vocsave
+variable vocsave
 
 create words-pad    260 allot
 create words-pocket 260 allot
+
+variable words-limit
+
 
 : .voc-once     ( -- )
                 vocsave @ ?dup
@@ -36,35 +39,17 @@ create words-pocket 260 allot
 
 0 value w#threads
 
-: (words)       ( voc -- )
-                dup voc#threads to w#threads
-                dup voc>vcfa call@
-                dup   doClass =         \ don't look through classes
-                swap do|Class = or 0=   \ don't look through classes
-        if      dup here 500 + w#threads cells move     \ copy vocabulary up
-                voc>vcfa vocsave !
-                begin   here 500 + w#threads largest dup
-                while   dup l>name nfa-count 2dup 255 min words-pad place
-                        words-pad ?uppercase count match?
-                        if      .voc-once
-                                type 20 #tab space 20 ?cr
-                                1 +to words-cnt
-                        else    2drop
-                        then
-                        @ swap !
-                        start/stop cursor-off
-                repeat  2drop
-        else    drop
-        then    vocsave off ;
 
-: (top-25-words) ( voc -- )
+
+: (words) ( voc -- )
                 dup voc#threads to w#threads
                 dup voc>vcfa call@
                 dup   doClass =         \ don't look through classes
                 swap do|Class = or 0=   \ don't look through classes
         if      dup here 500 + w#threads cells move     \ copy vocabulary up
                 voc>vcfa vocsave !
-                begin   here 500 + w#threads largest dup words-cnt 25 < and
+                begin  here 500 + w#threads largest dup
+                words-cnt words-limit @ < and
                 while   dup l>name nfa-count 2dup 255 min words-pad place
                         words-pad ?uppercase count match?
                         if      .voc-once
@@ -80,7 +65,7 @@ create words-pocket 260 allot
 
 forth definitions
 
-: words         ( -<optional-name>- )
+: nwords         ( -<optional-name>- )
                 0 to words-cnt
                 words-pocket off
                 bl word ?uppercase c@
@@ -98,24 +83,14 @@ forth definitions
                 count-words . ." words in the system."
                 r> base ! ;
 
-
+: words
+                10000 words-limit !
+                nwords
+                ;
 : latest-words   ( -<optional-name>- )
-                0 to words-cnt
-                words-pocket off
-                bl word ?uppercase c@
-                if      pocket count words-pocket place
-                        bl word ?uppercase drop
-                        voc-link @
-                        begin   dup vlink>voc
-                                (top-25-words) @ dup 0=
-                        until   drop
-                else    context @ (top-25-words)
-                then
-                base @ >r decimal
-                cr horizontal-line
-                ." Displayed latest " words-cnt . ." of the "
-                count-words . ." words in the system."
-                r> base ! ;
+                25 words-limit !
+                nwords
+                ;
 
 
 only forth also

@@ -34,10 +34,10 @@ next c;
 
 \ edit word
 : ed ( <name> -- )
-  cur-file 260 erase
+  cur-file 160 erase
   edit-open
-  .viewinfo
-  1+ msg_block 37 + z! drop
+  .viewinfo drop drop
+  cur-file 1+ msg_block 37 + z! 
   send_user_message ;
 
 \ edit filename

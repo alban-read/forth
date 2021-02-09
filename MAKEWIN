@@ -34,8 +34,6 @@ fload menus
 fload windows
 fload controls
 
-
-
 application ForthApp
 
 :object infobox <super dialog
@@ -47,32 +45,46 @@ rtextlabel aut1
 displayfield aut2
 rtextlabel ver1
 displayfield ver2
+
 :m ClassInit:  ( -- )
      ClassInit: super
      WF_StayOnScreen [ WF_Outside invert ] literal ChangeWFlags ;m
+
 :m On_Init:    ( -- )
-     688 216  2dup  SetSize  SetWaSize
+
+     720 220  2dup  SetSize  SetWaSize
      c" About this Program"  SetTitleText: self
+     
      BeginIcons
+
        self Start: nam1
-          c" Name:" SetText: nam1  144  -56 Move: nam1
+          c"    Name:" SetText: nam1  134  -56 Move: nam1
+
        self Start: nam2                  32 SetLength: nam2
-          c" !WimpForth" SetText: nam2  160  -56 Move: nam2
+          c" !WimpForth" SetText: nam2  180  -56 Move: nam2
+
        self Start: pur1
-       c" Purpose:" SetText: pur1  144 -108 Move: pur1
+       c"  Purpose:" SetText: pur1  134 -108 Move: pur1
+
        self Start: pur2                  32 SetLength: pur2
-       c" Forth to create Wimp programs" SetText: pur2  160 -108 Move: pur2
+       c" Forth to create Wimp programs" SetText: pur2  180 -108 Move: pur2
+
        self Start: aut1
-        c" Author:" SetText: aut1  144 -160 Move: aut1
+        c"  Author:" SetText: aut1  134 -160 Move: aut1
+
        self Start: aut2                  32 SetLength: aut2
-        c" Martin Läuter" SetText: aut2  160 -160 Move: aut2
+        c" Martin Läuter" SetText: aut2  180 -160 Move: aut2
+
        self Start: ver1
-       c" Version:" SetText: ver1  144 -212 Move: ver1
+       c" Version:" SetText: ver1  134 -212 Move: ver1
+
        self Start: ver2                  32 SetLength: ver2
        s" 1.0 (" temp$ place compile-version >date" temp$ +place
        s" )" temp$ +place
-       temp$ dup +null SetText: ver2  160 -212 Move: ver2
+       temp$ dup +null SetText: ver2  180 -212 Move: ver2
+
      EndIcons ;m
+
 :m Build:      ( ad -- ad' )
      Build: super
      Build: nam1 Build: nam2 Build: pur1 Build: pur2

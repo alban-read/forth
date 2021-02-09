@@ -1,7 +1,8 @@
 \
 \ ANS Forth kernel for ARM 3 machines  Martin Läuter
 \
-\ modified for strongarm 2007 Alban Read - works on RiscPC and Iyonix and PI400
+\ modified for strongarm 2007 Alban Read
+\ - works on RPCEmu, Iyonix, TI, misc PI and PI400.
 \
 
 decimal

@@ -433,7 +433,7 @@ int ?open
 
 :m Center:    ( -- x y )
      screen-size  ymax ymin - - 2/
-     swap 2* xmax xmin - - 2/ swap ;m
+     swap 2* xmax xmin - - 2/ swap 200 + ;m
 
 :m Build:     ( ad -- ad' )
      ^base cell+ ( hWnd ) over

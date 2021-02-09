@@ -11,11 +11,12 @@ code OS_CLI ( ad -- f )
   mvn vc tos, # 0
 next c;
 
-\ start the editor, assumes under $.apps
+\ start the StrongED editor, assumes under $.apps
 : editor
- z" startdesktoptask $.apps.!stronged " os_cli drop ;
+  z" startdesktoptask $.apps.!stronged "
+   os_cli drop ;
 
-
+\ for messages to the editor
 code send_user_message
  mov r0, # 17
  adr r1, # msg_block
@@ -24,6 +25,7 @@ code send_user_message
  swi " Wimp_SendMessage"
 next c;
 
+\ make an open doc message
 : edit-open
   msg_block 160 erase
   160 msg_block !
@@ -33,22 +35,22 @@ next c;
   msg_block 20 + z!  ;
 
 \ edit word
-: ed ( <name> -- )
+: ed ( <wordname> -- )
   cur-file 160 erase
   edit-open
   .viewinfo drop drop
-  cur-file 1+ msg_block 37 + z! 
+  cur-file 1+ msg_block 37 + z!
   send_user_message ;
 
 \ edit filename
-: edit ( <file name> -- )
+: edit ( <filename> -- )
   edit-open
   bl word
   pocket 1+ msg_block 37 + z! drop
   send_user_message  ;
 
 
-\ NOTES
+\ NOTES on StrongED
 \ http://stronged.torrens.org/man/misc/inter.html
 \ http://rickman.orpheusweb.co.uk/cookbk/sections/1440.html
 \ http://stronged.torrens.org/archive/2018/msg00427.html

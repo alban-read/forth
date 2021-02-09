@@ -20,7 +20,7 @@ variable vocsave
 create words-pad    260 allot
 create words-pocket 260 allot
 
-variable words-limit
+10000 value words-limit
 
 
 : .voc-once     ( -- )
@@ -49,7 +49,7 @@ variable words-limit
         if      dup here 500 + w#threads cells move     \ copy vocabulary up
                 voc>vcfa vocsave !
                 begin  here 500 + w#threads largest dup
-                words-cnt words-limit @ < and
+                words-cnt words-limit < and
                 while   dup l>name nfa-count 2dup 255 min words-pad place
                         words-pad ?uppercase count match?
                         if      .voc-once
@@ -63,9 +63,10 @@ variable words-limit
         else    drop
         then    vocsave off ;
 
-forth definitions
+
 
 : nwords         ( -<optional-name>- )
+                to words-limit
                 0 to words-cnt
                 words-pocket off
                 bl word ?uppercase c@
@@ -83,13 +84,14 @@ forth definitions
                 count-words . ." words in the system."
                 r> base ! ;
 
+
+forth definitions
+
 : words
-                10000 words-limit !
-                nwords
+                10000 nwords
                 ;
 : latest-words   ( -<optional-name>- )
-                25 words-limit !
-                nwords
+                25 nwords
                 ;
 
 

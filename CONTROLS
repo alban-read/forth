@@ -2,10 +2,12 @@
 cr .( Loading generic wimp controls...)
 
 comment:
+
     DIALOG is a special WINDOW class which contains control icons,
     such as DISPLAYFIELDs, TEXTLABELs, ACTIONBUTTONs, WRITABLEFIELDs,
     OPTIONBUTTONs, RADIOBUTTONs, METERs and HSLIDERs.
     The end of this file will demonstrate an overful example.
+
 comment;
 
 create %actbut ," R5,3"
@@ -53,7 +55,6 @@ create %grpbox ," R4"
        BT_Click        or
        IF_Border       or
        IF_FilledBG     or ] literal 0 ChangeIFlags: self
-     Black Gray1 SetColour: self
      %actbut 1+ IconData cell+ ! ;m
 :m SetText:   ( ^str -- )
      dup SetIndirText
@@ -98,6 +99,7 @@ create %grpbox ," R4"
        IF_HCentered or
        IF_Border    or
        IF_Text      or ] literal &ff000000 ChangeIFlags: self
+       Black Gray5 SetColour: self
      %disfld 1+ IconData cell+ ! ;m
 :m SetLength:  ( n -- )
      16* 12 + xmin + to xmax ;m
@@ -129,7 +131,7 @@ create %grpbox ," R4"
        IF_VCentered    or
        IF_IndData      or
        BT_1/Drag       or ] literal &ff000000 ChangeIFlags: self
-       Black Gray1 SetColour: self
+     Black Gray1 SetColour: self
      %optbut 1+ IconData cell+ ! ;m
 :m SetText:   ( ^str -- )
      dup SetIndirText

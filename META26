@@ -553,7 +553,7 @@ CR .( Metacompiler Loaded )
 
 CR .( Compiling the KERNEL...) CR
 
-FLOAD fkernel
+FLOAD fkernel26bit
 
 \ Resolve metacompiler forward references
 ' (.")          RESOLVES <(.")>
@@ -580,7 +580,7 @@ defer-list-t @ defer-list !-t
   CR .( Target origin:               )    ORIGIN 1 H.R .( h)
   CR .( Target size:                 )    HERE-T ORIGIN - U.
 
-IMAGE HERE-T ORIGIN - TARGET-SAVE kernel
+IMAGE HERE-T ORIGIN - TARGET-SAVE kernel26
 
 CR HERE-T ORIGIN - .  .( bytes written to file kernel )
 

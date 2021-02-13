@@ -33,7 +33,7 @@ align create imr mat-byte-size allot
 
 : run-matrix  ( -- )
   time-reset
-  10 0 do
+  25 0 do
    initiate-seed
    ima initiate-matrix
    imb initiate-matrix

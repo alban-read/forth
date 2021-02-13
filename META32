@@ -1,0 +1,591 @@
+\ Win32 Forth Metacompiler
+\ Andrew McKewan, November 1995
+\ Many thanks to Henry Laxen & Michael Perry for F83
+
+\ SYS-WARNING-OFF        \ don't warn about use of system words
+\ echo on
+
+
+time-reset
+
+ONLY FORTH ALSO DEFINITIONS
+
+
+ANEW METACOMPILER
+NOSTACK
+WARNING OFF
+: HAVE ( -- f ) DEFINED NIP 0<> ;
+
+: >WORDLIST  ( voc-cfa -- wordlist )   VCFA>VOC ;  ( Win32Forth )
+
+
+\ ======================================================================
+\ Define the wordlists that are used in the metacompiler
+
+VOCABULARY META         \ metacompiler implementation
+VOCABULARY TARGET       \ target words
+VOCABULARY TRANSITION   \ special compiling words
+VOCABULARY FORWARD      \ forward references
+
+' META        >WORDLIST CONSTANT META-WORDLIST          ( *SYSDEP* )
+' TARGET      >WORDLIST CONSTANT TARGET-WORDLIST        ( *SYSDEP* )
+' FORWARD     >WORDLIST CONSTANT FORWARD-WORDLIST       ( *SYSDEP* )
+' TRANSITION  >WORDLIST CONSTANT TRANSITION-WORDLIST    ( *SYSDEP* )
+' ASSEMBLER   >WORDLIST CONSTANT ASSEMBLER-WORDLIST     ( *SYSDEP* )
+
+
+\ We will use the following search orders:
+: IN-FORTH        ONLY FORTH ALSO DEFINITIONS  ;
+: IN-META         ONLY FORTH ALSO META ALSO DEFINITIONS ;
+: IN-TRANSITION   ONLY FORWARD ALSO TARGET ALSO TRANSITION ;
+
+
+
+IN-META
+
+\ ======================================================================
+\ Memory Access Words
+
+HEX 00008000     VALUE ORIGIN DECIMAL   \ where target image will run
+
+CREATE IMAGE  40000 ALLOT               \ where target image is built
+       IMAGE  40000 ERASE  ( clean start )
+
+VARIABLE DP-T   ORIGIN               DP-T !   \ target dictionary pointer
+
+: ORG   ( taddr -- )  DUP TO ORIGIN  DP-T ! ;
+
+: THERE   ( taddr -- addr )     ORIGIN -  IMAGE +  ;
+: C@-T    ( taddr -- char )     THERE C@ ;
+: @-T     ( taddr -- n )        THERE @  ;
+: C!-T    ( char taddr -- )     THERE C! ;
+: !-T     ( n taddr -- )        THERE !  ;
+: HERE-T  ( -- taddr )          DP-T @   ;
+: ALLOT-T ( n -- )              ( HERE-T THERE OVER ERASE )  DP-T +!  ;
+: C,-T    ( char -- )           HERE-T C!-T   1 DP-T +!  ;
+: ,-T     ( n -- )              HERE-T  !-T   4 DP-T +!  ;
+: S,-T    ( addr len -- )       0 ?DO  COUNT C,-T   LOOP DROP  ;
+
+: ALIGN   HERE-T ALIGNED HERE-T - ALLOT-T ;
+
+: TARGET-SAVE  ( addr len -<filename>- )
+         bl word save-file ;
+\        BL WORD COUNT R/W BIN CREATE-FILE ABORT" Cannot create file"   >R
+\        R@ WRITE-FILE ABORT" Error writing Dictionary"
+\        R> CLOSE-FILE ABORT" Cannot close file" ;
+
+\ : +ORIGIN  ( n -- addr )  CELLS ORIGIN + THERE ;
+
+\ ======================================================================
+\ Target Memory Dump
+
+: .2   ( n -- )   0 <# # # #> TYPE SPACE ;
+
+: EMIT.  ( n -- )
+   ( 127 AND)  DUP BL 127 WITHIN 0= IF  DROP [CHAR] .  THEN  EMIT ;
+
+: DUMP  ( taddr len -- )  ( hex byte format with ascii )
+    BASE @ >R HEX  OVER + DUP ROT
+    ?DO  CR I 4 .R SPACE SPACE   I 16 + OVER MIN I
+         2DUP DO  I C@-T .2  I J 7 + = IF SPACE THEN  LOOP
+         2DUP -  16 OVER - 3 *  SWAP 8 < -  1+ SPACES
+         DO  I C@-T EMIT.  LOOP
+         START/STOP
+    16 +LOOP  DROP  R> BASE ! ;
+
+\ ======================================================================
+\ Modify assembler to place code into target
+
+     ' HERE-T     ASSEMBLER  IS HERE    META
+     ' C,-T       ASSEMBLER  IS C,      META
+     ' ,-T        ASSEMBLER  IS T,      META
+     ' ,-T        ASSEMBLER  IS ,       META
+     ' @-T        ASSEMBLER  IS t@      META
+     ' !-T        ASSEMBLER  IS t!      META
+
+\ ASSEMBLER MACROS
+: MACRO  ASSEMBLER DEFINITIONS : ;
+: END-MACRO   POSTPONE ; META DEFINITIONS ; IMMEDIATE
+
+
+\ ======================================================================
+\ Define Meta Branching Constructs
+
+: ?CONDITION  TRUE - ABORT" Conditionals not paired" ;
+
+: ?>MARK      ( -- f addr )   TRUE   HERE-T   0 ,-T   ;
+: ?>RESOLVE   ( f addr -- )   HERE-T SWAP !-T   ?CONDITION ;
+: ?<MARK      ( -- f addr )   TRUE   HERE-T   ;
+: ?<RESOLVE   ( f addr -- )   ,-T   ?CONDITION   ;
+
+\ ======================================================================
+\ Meta Compiler Forward Reference Linking
+
+\ Structure of a forward reference (cell offsets from BODY)
+\       0       - target address if resolved
+\       1       - resolved flag
+\       2       - link to previous forward reference
+
+
+VARIABLE FORWARD-LINK   \ linked list of FORWARD words (for .UNRESOLVED)
+0 FORWARD-LINK !
+
+: MAKE-CODE   ( pfa -- )
+        @ ,-T   ;
+: LINK-BACKWARDS   ( pfa -- )
+        HERE-T OVER @ ,-T   SWAP !   ;
+: RESOLVED?   ( pfa -- f )
+        CELL+ @   ;
+
+: DO-FORWARD   ( -- )
+        DOES> DUP RESOLVED? IF  MAKE-CODE  ELSE  LINK-BACKWARDS  THEN ;
+
+: (FORWARD)    ( taddr -- )
+        GET-CURRENT >R
+        FORWARD-WORDLIST SET-CURRENT
+        CREATE
+          , ( taddr )
+          FALSE , ( resolved flag )
+          HERE FORWARD-LINK @ , FORWARD-LINK !
+        DO-FORWARD
+        R> SET-CURRENT ;
+
+: FORWARD:  ( -- )      \ Explicit forward reference
+        0 (FORWARD) ;
+
+: UNDEFINED   ( -- )    \ Undefined words create automatic forward reference
+        HERE-T  (FORWARD)  0 ,-T  ;
+
+\ ======================================================================
+\ Create Headers in Target Image. We support only one FORTH-WORDLIST in
+\ the kernel.
+
+32 CONSTANT #THREADS     \ # of threads in FORTH-WORDLIST
+
+CREATE FORTH-THREADS  #THREADS CELLS ALLOT
+       FORTH-THREADS  #THREADS CELLS ERASE
+
+\ Hash string to an integer (must match kernel definition!)
+: HASH   ( addr len -- hashCode )
+    0 -rot bounds ?do 1 lshift i c@ xor loop ;
+
+: THREAD   ( addr len -- 'thread )      \ get vocab thread address
+        HASH  #THREADS MOD  CELLS FORTH-THREADS +  ;
+
+VARIABLE HEADS  HEADS ON
+: |   HEADS OFF ;   ( make next word headerless )
+
+: VIEW,  ( -- )
+        LOADLINE @ ,-t ;
+
+: ALIGN-HEADER  ( len -- )      \ make sure link field will be cell aligned
+        1+ HERE-t +  DUP ALIGNED  SWAP - ALLOT-t ;
+
+: .WORD   >IN @  BL WORD COUNT DUP 1+ ?CR TYPE SPACE  >IN ! ;
+
+variable last-t
+
+: HEADER   ( -- )
+\        CR .S .WORD
+        BL WORD ?UPPERCASE COUNT
+        HEADS @
+        IF      DUP ALIGN-HEADER
+                2DUP S,-t                               \ name string
+                HERE-t LAST-t !                         \ remember nfa
+                DUP C,-t                                \ count byte
+                VIEW,                                   \ view field
+                THREAD  DUP @  HERE-t ROT !  ,-t        \ link field
+        ELSE
+                2DROP HEADS ON
+        THEN  ;
+
+
+\ ======================================================================
+\ Meta Compiler Create Target Image
+
+VARIABLE TARGET-LINK    \ linked list of TARGET words (for .SYMBOLS)
+0 TARGET-LINK !
+
+: DO-TARGET  DOES> MAKE-CODE ;  \ what target words do
+
+: TARGET-CREATE   ( -- )
+        >IN @ HEADER >IN !              \ create header in target
+        TARGET DEFINITIONS              \ add word to TARGET wordlist
+        CREATE
+          HERE-T , ( xt )
+          HERE TARGET-LINK @ , TARGET-LINK !    \ linked list of target words
+        DO-TARGET
+        META DEFINITIONS ;
+
+: RECREATE   ( -- )
+        >IN @   TARGET-CREATE   >IN !   ;
+
+\ ======================================================================
+\ Create target code words
+
+HAVE CLEAR-LABELS 0= [IF]
+: CLEAR-LABELS ;
+: CHECK-LABELS ;
+[THEN]
+
+: INIT-ASSEMBLER  ( -- )        \ prepare for assembly code
+        [ ASSEMBLER o] CLEAR-LABELS  SETASSEM o[ META ]
+        ASSEMBLER DEFINITIONS  !CSP ;
+
+: CODE   ( -- )
+        TARGET-CREATE
+        INIT-ASSEMBLER ;
+
+: LABEL   ( -- )
+        ALIGN
+        INIT-ASSEMBLER   HERE-T CONSTANT  ;
+
+HEX : CALL,  ( t-addr -- )  here-t ad>of &eb000000 or ,-t  ;  DECIMAL
+
+ASSEMBLER DEFINITIONS
+: LABEL      A;  HERE-T CONSTANT ;
+: END-CODE   A;  IN-META CHECK-LABELS
+      o[ ASSEMBLER o]  ?CSP  ;
+: C;   END-CODE  ;
+META DEFINITIONS
+
+\ ======================================================================
+\ Force compilation of target & forward words. We need to reference the
+\ special runtime target words like LIT and BRANCH before they are defined,
+\ so we store the name of the word and look it up when we need it. Hopefully
+\ they will have been defined by then. [TARGET] is for target primatives and
+\ [LABEL] is for target assembly labels (runtime of builtin defining words).
+
+: FIND&EXECUTE  ( addr len wordlist -- ? )
+        SEARCH-WORDLIST 0= ABORT" Target word not found"  EXECUTE ;
+
+: DEFERED  ( wordlist -- )
+        BL WORD COUNT POSTPONE SLITERAL
+        POSTPONE LITERAL
+        POSTPONE FIND&EXECUTE ;
+
+: [TARGET]  ( -- )  TARGET-WORDLIST    DEFERED ; IMMEDIATE
+: [LABEL]   ( -- )  ASSEMBLER-WORDLIST DEFERED ; IMMEDIATE
+
+
+\ Find the next word in a single wordlist only
+: DEFINED-IN  ( wordlist -- xt )
+        BL WORD COUNT 2dup upper ROT SEARCH-WORDLIST   0= ?MISSING  ;
+
+: 'T   ( -- xt )   TARGET-WORDLIST  DEFINED-IN ;
+: 'F   ( -- xt )   FORWARD-WORDLIST DEFINED-IN ;
+
+: [FORWARD]   ( -- )    'F COMPILE, ;   IMMEDIATE
+
+\ ======================================================================
+\ Define transition words, which behave like forth immediate words.
+
+: T:   TRANSITION DEFINITIONS  META  :  ;
+: T;   POSTPONE ;  META DEFINITIONS ; IMMEDIATE
+
+: [TRANSITION]  TRANSITION-WORDLIST DEFINED-IN COMPILE, ; IMMEDIATE
+
+T: (   POSTPONE (   T;
+T: \   POSTPONE \   T;
+
+: STRING,-T     [CHAR] " PARSE  DUP C,-T  S,-T  0 C,-T  ALIGN  ;
+
+FORWARD: <(.")>
+T: ."   [FORWARD]  <(.")>   STRING,-T   T;
+
+FORWARD: <(S")>
+T: S"    [FORWARD] <(S")>   STRING,-T   T;
+
+FORWARD: <(ABORT")>
+T: ABORT"   [FORWARD] <(ABORT")>    STRING,-T   T;
+
+\ ======================================================================
+\ Define target vocabularies (uh, wordlists)
+
+VARIABLE VOC-LINK-T
+FORWARD: <VOCABULARY>
+: VOCABULARY   ( -- )
+        TARGET-CREATE
+        [FORWARD] <VOCABULARY>
+        here-t cell- dup @-t over ad>of &eb000000 or swap !-t
+        #THREADS ,-T
+        HERE-T  VOC-LINK-T @ ,-T   VOC-LINK-T !
+        #THREADS 0 DO  0 ,-T  LOOP ;
+\        512 0 DO  0 ,-T  LOOP ;
+
+: IMMEDIATE   ( -- )
+        LAST-t @  DUP C@-t 128 OR  ( Precedence Bit )  SWAP C!-t ;
+
+VARIABLE STATE-T
+
+T: [COMPILE]   'T EXECUTE    T;
+
+: >BODY-T  4 + ;
+
+FORWARD: <(IS)>
+T: IS      [FORWARD] <(IS)>    T;
+:  IS    'T >BODY @ >BODY-T  2DUP !-T  8 + !-T ;
+ ( patches both current and default value of defered word )
+
+\ TO used inside a definition
+T: TO   'T >BODY @ ( tcfa )  8 + ,-T  T;
+T: +TO  'T >BODY @ ( tcfa ) 12 + ,-T  T;
+
+
+\ ======================================================================
+\ Display the Target Symbol Table
+
+: @COL  _GETXY DROP ;
+
+: TAB   @COL 60 >
+        IF  CR  ELSE  20 @COL OVER MOD - SPACES  THEN ;
+
+: .SYMBOLS    ( -- )
+        TARGET-LINK
+        BEGIN   @ DUP
+        WHILE   DUP CELL - ( pfa )
+                DUP @ TAB 5 .R SPACE
+                BODY> >NAME .ID  ( *SYSDEP* )
+                START/STOP
+        REPEAT  DROP ;
+
+\ ======================================================================
+\ Meta Compiler Resolve Forward References
+
+: .UNRESOLVED   ( -- )
+        FORWARD-LINK
+        BEGIN   @ DUP
+        WHILE   DUP 2 CELLS - RESOLVED? 0=
+                IF      DUP 2 CELLS - BODY> >NAME .ID  ( *SYSDEP* )
+                THEN
+                START/STOP
+        REPEAT  DROP ;
+
+: FIND-UNRESOLVED   ( -- cfa f )
+        'F    DUP  >BODY RESOLVED?     ;
+
+: RESOLVE   ( taddr cfa -- )
+        >BODY   2DUP TRUE OVER CELL+ !   @
+        BEGIN   DUP
+        WHILE   2DUP @-T   -ROT SWAP
+                dup @-t 24 rshift &eb =
+                if dup>r rot [ assembler o] br>ad o[ forth ] swap
+                  r@ ad>of &eb000000 or r> then !-T
+        REPEAT  2DROP  !   ;
+
+: RESOLVES   ( taddr -- )
+        FIND-UNRESOLVED
+        IF      >NAME .ID ." Already Resolved"   DROP  ( *SYSDEP* )
+        ELSE    RESOLVE
+        THEN   ;
+
+
+\ ======================================================================
+\ Meta compiler Branching & Looping
+
+T: IF      [TARGET] ?BRANCH  ?>MARK   T;
+
+T: THEN    [TARGET] _THEN    ?>RESOLVE    T;
+T: ELSE    [TARGET]  BRANCH  ?>MARK   2SWAP ?>RESOLVE   T;
+
+T: BEGIN   [TARGET] _BEGIN   ?<MARK   T;
+T: AGAIN   [TARGET] _AGAIN   ?<RESOLVE   T;
+T: UNTIL   [TARGET] _UNTIL   ?<RESOLVE   T;
+T: WHILE   [TARGET] _WHILE   ?>MARK  2SWAP  T;
+T: REPEAT  [TARGET] _REPEAT  ?<RESOLVE  ?>RESOLVE   T;
+
+T: ?DO     [TARGET] (?DO)    ?>MARK   T;
+T: DO      [TARGET] (DO)     ?>MARK   T;
+T: LOOP    [TARGET] (LOOP)   2DUP CELL+   ?<RESOLVE   ?>RESOLVE   T;
+T: +LOOP   [TARGET] (+LOOP)  2DUP CELL+   ?<RESOLVE   ?>RESOLVE   T;
+
+T: case   [target] _CASE 0 t;
+T: of     [target] _OF ?>mark t;
+T: endof  [target] _ENDOF ?>mark 2swap ?>resolve rot 1+ t;
+T: endcase [target] _ENDCASE 0 ?do ?>resolve loop t;
+
+\ ======================================================================
+\ Meta compiler literals
+
+T: LITERAL   ( n -- )   [TARGET] LIT  ,-T   T;
+T: [CHAR]    ( -- )     CHAR        [TRANSITION] LITERAL   T;
+T: [']       ( -- )     'T >BODY @  [TRANSITION] LITERAL   T;
+
+
+\ ======================================================================
+\ Target EQU is like a constant except that if it is used in a definition
+\ it will just compile a literal.
+
+: (EQU)  ( n -- )
+        CREATE ,  DOES> @ [TRANSITION] LITERAL ;
+
+: EQU   ( n -<name>- )
+        TRANSITION DEFINITIONS
+        >IN @  OVER (EQU)  >IN !
+        META DEFINITIONS
+        CONSTANT ;
+
+: HERE:  ( -<name>- )
+        HERE-T
+        TRANSITION DEFINITIONS
+        >IN @  OVER (EQU)  >IN !
+        META DEFINITIONS
+        CONSTANT ;
+
+\ ======================================================================
+\ Meta compiler defining words
+
+: CREATE  ( -- )
+        RECREATE  [LABEL] DOVAR call,
+        HERE-T CONSTANT  ;
+
+: LABCREATE  ( -- )
+        RECREATE  [LABEL] DOVAR call,
+        init-assembler HERE-T CONSTANT  ;
+
+: VARIABLE  ( -- )
+        CREATE   0 ,-T   ;
+
+: CONSTANT   ( n -- )
+        RECREATE   [LABEL] DOCON call,
+        DUP ,-T   CONSTANT   ;
+
+: VALUE  ( n -- )
+        TARGET-CREATE
+        [LABEL] DOVALUE   call,
+        ,-T
+        [LABEL] DOVALUE!  call,
+        [LABEL] DOVALUE+! call,  ;
+
+: LOCAL  ( n -- )
+        TARGET-CREATE
+        [LABEL] DOLOCAL  call,
+        1+ -4 * ,-T
+        [LABEL] DOLOCAL!  call,
+        [LABEL] DOLOCAL+! call,  ;
+
+FORTH VARIABLE DEFER-LIST-T META
+: DEFER   ( -- )
+        TARGET-CREATE   &e51ff004  ,-T
+        0 ,-T
+        HERE-T  DEFER-LIST-T @ ,-T  DEFER-LIST-T !
+        0 ,-T  ;
+
+FORWARD: <(;CODE)>
+T: ;CODE   ( -- addr )
+        [FORWARD] <(;CODE)>   HERE-T
+        STATE-T OFF   IN-META
+        INIT-ASSEMBLER T;
+
+T: DOES>     ( -- addr )
+        [FORWARD] <(;CODE)>   HERE-T
+        &e3ce03ff ,-t \ bic r0, link, # &fc000003
+        [LABEL] DODOES CALL,   T;
+
+
+\ ======================================================================
+\ Identify numbers (single numbers only)
+
+: &number? ( ad len -- ad len false | n true )
+    over c@ [char] & =
+    if 1 /string base @ >r hex
+      >number 0= nip nip
+      r> base !
+    else false
+    then  ;
+
+: NUMBER?  ( addr len -- n f )
+        OVER C@ [CHAR] - =              \ leading minus sign?
+        DUP >R IF  1 /STRING  THEN
+        0 0 2SWAP &number? ?dup
+        0= if >NUMBER 0= NIP NIP then ( -- u f )
+        R> IF SWAP NEGATE SWAP THEN ;
+
+\ ======================================================================
+\ Meta Compiler Compiling Loop.
+
+\ We need a special version of WORD that will span multiple lines.
+\ This will also save >IN so we can rescan the input stream.
+FORTH VARIABLE T-IN META
+: TOKEN  ( -- addr )
+        BEGIN   >IN @ T-IN !
+                BL WORD  DUP C@ 0=
+        WHILE   DROP REFILL  0= ABORT" end of file in definition"
+        REPEAT  ?UPPERCASE ;
+
+: ]   ( -- )
+        STATE-T ON   IN-TRANSITION
+        BEGIN   TOKEN FIND
+                IF      EXECUTE
+                ELSE    COUNT NUMBER?
+                        IF      [TRANSITION] LITERAL
+                        ELSE    DROP T-IN @ >IN !
+                                UNDEFINED ( create forward reference )
+                        THEN
+                THEN
+                STATE-T @ 0=
+        UNTIL   ;
+
+T: [   IN-META   STATE-T OFF   T;
+T: ;   [TARGET] UNNEST   [TRANSITION] [   T;
+
+\ ======================================================================
+\ Interpretive words for Meta
+
+: '   'T >BODY @   ;
+: ,   ,-T ;
+: C,  C,-T ;
+: HERE HERE-T ;
+: ALLOT   ALLOT-T  ;
+: ,"  STRING,-T ;
+: >BODY >BODY-T ;
+
+\ : DIS  ( t-addr -- )  THERE [ DISASSEMBLER ] REST [ META ] ;
+\ : DS   ' @-T DIS ;
+
+: :   TARGET-CREATE  [LABEL] DOCOL call,   ]  ;
+
+\ And we're off.....
+
+CR .( Metacompiler Loaded )
+
+\ ======================================================================
+
+CR .( Compiling the KERNEL...) CR
+
+FLOAD fkernel32bit
+
+\ Resolve metacompiler forward references
+' (.")          RESOLVES <(.")>
+' (S")          RESOLVES <(S")>
+' (ABORT")      RESOLVES <(ABORT")>
+' (IS)          RESOLVES <(IS)>
+' (;CODE)       RESOLVES <(;CODE)>
+
+\ Initialize variables
+HERE-T  DP !-T
+' FORTH >BODY 2 CELLS +
+FORTH-THREADS OVER THERE #THREADS CELLS MOVE
+DUP CURRENT !-T
+DUP CONTEXT !-T
+DUP CONTEXT CELL+ !-T
+    VOC>VLINK VOC-LINK !-T              \ setup minimal voc-link for >name
+defer-list-t @ defer-list !-t
+
+  CR .( Unresolved references: ) CR   .UNRESOLVED
+  CR
+  CR .( Host Bytes Free:             )    UNUSED U.
+  CR .( First Target Code Address:   )    ORIGIN THERE U.
+  CR .( Last Target Code Address:    )    HERE-T THERE U.
+  CR .( Target origin:               )    ORIGIN 1 H.R .( h)
+  CR .( Target size:                 )    HERE-T ORIGIN - U.
+
+IMAGE HERE-T ORIGIN - TARGET-SAVE kernel32
+
+CR HERE-T ORIGIN - .  .( bytes written to file kernel )
+
+.elapsed
+
+
+
+

@@ -1,0 +1,3364 @@
+\
+\ ANS Forth kernel for ARM 3 machines  Martin Läuter 26bit mode
+\
+\ modified for strongarm 2007 Alban Read
+\
+
+decimal
+here: coldstart 0 , \ branch to cold, will be patched later
+here: memtotal  0 , \ total memory available
+here: retstack  0 , \ desired return stack size
+here: datstack  0 , \ desired data stack size
+here: filebuff  0 , \ desired file buffer size
+here: commline  0 , \ commandline address
+
+here: thisfile
+0 , ," FKERNEL"
+
+vocabulary forth
+\ Hash-value for " FORTH" is &10
+
+forth definitions meta
+
+label dovar
+  stmfd sp !, { tos }
+  bic tos, link, # &fc000003
+  next c; meta
+
+label docon
+  stmfd sp !, { tos }
+  bic link, link, # &fc000003
+  ldr tos, [ link ]
+  next c;
+
+
+assembler dovar meta constant dovar
+assembler docon meta constant docon
+
+
+labcreate docol
+  stmfd rp !, { ip }
+  bic ip, link, # &fc000003
+next c;
+
+labcreate dodoes
+  stmfd sp !, { tos }
+  mov tos, r0
+  stmfd rp !, { ip }
+  bic ip, link, # &fc000003
+next c;
+
+labcreate dovalue
+  stmfd sp !, { tos }
+  bic link, link, # &fc000003
+  ldr tos, [ link ]
+next c;
+
+labcreate dovalue!
+  bic link, link, # &fc000003
+  str tos, [ link, # -8 ]
+  ldmfd sp !, { tos }
+next c;
+
+labcreate dovalue+!
+  bic link, link, # &fc000003
+  ldr r0, [ link, # -12 ]
+  add r0, tos, r0
+  str r0, [ link, # -12 ]
+  ldmfd sp !, { tos }
+next c;
+
+labcreate do2value
+  stmfd sp !, { tos }
+  bic link, link, # &fc000003
+  ldr tos, [ link ]
+  ldmfd tos, { tos, link }
+  stmfd sp !, { link }
+next c; meta
+
+variable lp
+
+labcreate dolocal
+  stmfd sp !, { tos }
+  bic link, link, # &fc000003
+  ldr tos, [ link ]
+  ldr r0, lp
+  ldr tos, [ r0, tos ]
+next c;
+
+labcreate dolocal!
+  bic link, link, # &fc000003
+  ldr r0, [ link, # -8 ]
+  ldr r1, lp
+  str tos, [ r1, r0 ]
+  ldmfd sp !, { tos }
+next c;
+
+labcreate dolocal+!
+  bic link, link, # &fc000003
+  ldr r0, [ link, # -12 ]
+  ldr r1, lp
+  ldr r0, [ r1, r0 ]!
+  add tos, tos, r0
+  str tos, [ r1 ]
+  ldmfd sp !, { tos }
+next c;
+
+labcreate docolp
+  ldr r0, lp
+  stmfd rp !, { r0, ip }
+  str rp, lp
+  bic ip, link, # &fc000003
+  ldr r0, [ ip ], # 4
+  and r1, r0, # &ff
+  sub rp, rp, r1, lsl # 2
+  mov r0, r0, lsr # 8
+  and s r0, r0, # &ff
+  0<> if
+    begin
+      stmfd rp !, { tos }
+      ldmfd sp !, { tos }
+      sub s r0, r0, # 1
+    0= until
+  then
+next c; meta
+
+
+variable defer-list
+
+variable loadfile      thisfile loadfile !-t
+
+code exitp
+  ldr rp, lp
+  ldmfd rp !, { r0, ip }
+  str r0, lp
+next c;
+
+code unnestp
+  ldr rp, lp
+  ldmfd rp !, { r0, ip }
+  str r0, lp
+next c;
+
+code exit      ( -- )
+  ldmfd rp !, { ip }
+next c;
+
+code unnest    ( -- ) \ Same as EXIT
+  ldmfd rp !, { ip }
+next c;
+
+code noop      ( -- ) \  Does nothing  (No-Operation)
+next c;
+
+
+code lit
+  stmfd sp !, { tos }
+  ldmfd ip !, { tos, pc }
+c;
+
+\ Execute the word whose CFA is on the stack.
+code execute   ( cfa -- )
+  mov r0, tos
+  ldmfd sp !, { tos }
+  mov pc, r0 c;
+
+code pause
+  mov r0, r0
+next c;
+
+code branch    ( -- ) \ an unconditional branch
+  ldr ip, [ ip ]
+next c;
+
+code ?branch   ( f -- )  \ branch if f is zero
+  teq tos, # 0
+  ldmfd sp !, { tos }
+  ldmfd ne ip !, { r0, pc }
+  ldr ip, [ ip ]
+next c;
+
+code _begin
+next c;
+
+code _until
+  teq tos, # 0
+  ldmfd sp !, { tos }
+  ldmfd ne ip !, { r0, pc }
+  ldr ip, [ ip ]
+next c;
+
+code _again
+  ldr ip, [ ip ]
+next c;
+
+code _while
+  teq tos, # 0
+  ldmfd sp !, { tos }
+  ldmfd ne ip !, { r0, pc }
+  ldr ip, [ ip ]
+next c;
+
+code _repeat
+  ldr ip, [ ip ]
+next c;
+
+code _then
+next c;
+
+code _case
+next c;
+
+code _endcase
+  ldmfd sp !, { tos }
+next c;
+
+code _of
+  mov r0, tos
+  ldmfd sp !, { tos }
+  cmp r0, tos
+  ldr ne ip, [ ip ]
+  next ne
+  ldmfd sp !, { tos }
+  ldmfd ip !, { r0, pc } c;
+
+code _endof   ( -- ) \ an unconditional branch
+  ldr ip, [ ip ]
+next
+c;
+
+code (do)      ( lim sta -- ) \ Primitive form of DO
+  mov r3, tos
+  ldmfd sp !, { r1, tos }
+  ldr r2, [ ip ], # 4
+  add r1, r1, # &80000000
+  sub r0, r3, r1
+  stmfd rp !, { r0, r1, r2 }
+next c;
+
+code (?do)     ( lim sta -- ) \ Primitive form of ?DO
+  mov r3, tos
+  ldmfd sp !, { r1, tos }
+  cmp r3, r1
+  ldr ne r2, [ ip ], # 4
+  add ne r1, r1, # &80000000
+  sub ne r0, r3, r1
+  stmfd ne rp !, { r0, r1, r2 }
+  next ne
+  ldr ip, [ ip ]
+next c;
+
+\ Clean up Return Stack so we can EXIT from DO-loop.
+code unloop    ( -- )
+  add rp, rp, # 12
+next c;
+
+code (loop)    ( -- )  \ Primitive form of LOOP
+  ldr r0, [ rp ]
+  add s r0, r0, # 1
+  str vc r0, [ rp ]
+  ldr vc ip, [ ip ]
+  next vc
+  add rp, rp, # 12
+  ldmfd ip !, { r0, pc } c;
+
+code (+loop)   ( n -- )  \ Primitive form of +LOOP
+  ldr r0, [ rp ]
+  add s r0, r0, tos
+  ldmfd sp !, { tos }
+  str vc r0, [ rp ]
+  ldr vc ip, [ ip ]
+  next vc
+  add rp, rp, # 12
+  ldmfd ip !, { r0, pc } c;
+
+code bounds    ( n1 n2 --- n3 n4 )  \ Calculate limits used in DO-loop
+  mov r0, tos
+  ldr tos, [ sp ]
+  add r0, tos, r0
+  str r0, [ sp ]
+next c;
+
+code i         ( -- n ) \ get index of the innermost loop
+  stmfd sp !, { tos }
+  ldr tos, [ rp ]
+  ldr r0, [ rp, # 4 ]
+  add tos, tos, r0
+next c;
+
+code j         ( -- n ) \ get index of the second most inner loop.
+  stmfd sp !, { tos }
+  ldr tos, [ rp, # 12 ]
+  ldr r0, [ rp, # 16 ]
+  add tos, tos, r0
+next c;
+
+code leave       ( -- )
+  add rp, rp, # 12
+  ldr ip, [ rp, # -4 ]
+next c;
+
+code ?leave    ( f -- )
+  orr s tos, tos, tos
+  ldmfd sp !, { tos }
+  next eq
+  add rp, rp, # 12
+  ldr ip, [ rp, # -4 ]
+next c;
+
+variable sp0
+variable rp0
+variable hld
+variable base
+variable handler
+variable msg
+variable dp
+
+
+\ sync the last few pages
+code syncCode
+  ldr r0, dp
+  mov r1, # 0
+  begin
+    tst r0, # 3
+  0<> while
+    strb r1, [ r0 ], # 1
+  repeat
+  mov r2, r0
+  sub r1, r0, # 8192
+  mov r0, # 1
+  swi " OS_SynchroniseCodeAreas"
+next c;
+
+code here
+  stmfd sp !, { tos }
+  ldr tos, dp
+next c;
+
+code allot
+  ldr r0, dp
+  add r0, r0, tos
+  str r0, dp
+  ldmfd sp !, { tos }
+  ldr r0, dp
+next c;
+
+code compile,
+  ldr r0, dp
+  str tos, [ r0 ], # 4
+  str r0, dp
+  ldmfd sp !, { tos }
+next c;
+
+code ,
+  ldr r0, dp
+  str tos, [ r0 ], # 4
+  str r0, dp
+  ldmfd sp !, { tos }
+next c;
+
+code c,
+  ldr r0, dp
+  strb tos, [ r0 ], # 1
+  str r0, dp
+  ldmfd sp !, { tos }
+next c;
+
+code w,
+  ldr r0, dp
+  strb tos, [ r0 ], # 1
+  mov tos, tos, lsr # 8
+  strb tos, [ r0 ], # 1
+  str r0, dp
+  ldmfd sp !, { tos }
+next c;
+
+code compile
+  ldr r0, dp
+  ldmfd ip !, { r1, link }
+  str r1, [ r0 ], # 4
+  str r0, dp
+  mov pc, link c;
+
+code align
+  ldr r0, dp
+  mov r1, # 0
+  begin
+    tst r0, # 3
+  0<> while
+    strb r1, [ r0 ], # 1
+  repeat
+  str r0, dp
+next c;
+
+
+code aligned
+  add tos, tos, # 3
+  bic tos, tos, # 3
+next c;
+
+labcreate m0cfa
+  ldr r0, lp
+  stmfd rp !, { r0, op, ip }
+  str rp, lp
+  bic ip, link, # &fc000003
+  \ mov ip, link
+  mov op, tos
+  ldmfd sp !, { tos }
+  ldr r0, [ ip, # 4 ]!
+  and r1, r0, # &ff
+  sub rp, rp, r1, lsl # 2
+  mov s r0, r0, lsr # 8
+  0<> if
+    begin
+      stmfd rp !, { tos }
+      ldmfd sp !, { tos }
+      sub s r0, r0, # 1
+    0= until
+  then
+  add ip, ip, # 4
+next c;
+
+labcreate m1cfa
+  ldr r0, lp
+  ldr r1, [ ip ], # 4
+  stmfd rp !, { r0, op, ip }
+  add op, r1, op
+  str rp, lp
+  bic ip, link, # &fc000003
+  \ mov ip, link
+  ldr r0, [ ip ], # 4
+  and r1, r0, # &ff
+  sub rp, rp, r1, lsl # 2
+  mov s r0, r0, lsr # 8
+  0<> if
+    begin
+      stmfd rp !, { tos }
+      ldmfd sp !, { tos }
+      sub s r0, r0, # 1
+    0= until
+  then
+next c; meta
+
+code exitm
+  ldr rp, lp
+  ldmfd rp !, { r0, op, ip }
+  str r0, lp
+next c;
+
+code unnestm
+  ldr rp, lp
+  ldmfd rp !, { r0, op, ip }
+  str r0, lp
+next c;
+
+code ^base
+  stmfd sp !, { tos }
+  mov tos, op
+next c;
+
+labcreate (iv@)
+  stmfd sp !, { tos }
+  bic r0, link, # &fc000003
+  ldr r0, [ r0 ]
+  ldr tos, [ r0, op ]
+next c;
+
+labcreate (iv!)
+  bic r0, link, # &fc000003
+  ldr r0, [ r0, # -8 ]
+  str tos, [ r0, op ]
+  ldmfd sp !, { tos }
+next c;
+
+labcreate (iv+!)
+  bic r0, link, # &fc000003
+  ldr r0, [ r0, # -12 ]
+  ldr r1, [ r0, op ]
+  add tos, tos, r1
+  str tos, [ r0, op ]
+  ldmfd sp !, { tos }
+next c;
+
+labcreate (iv[]@)
+  bic r0, link, # &fc000003
+  ldr r0, [ r0 ]
+  add r0, r0, op
+  ldr tos, [ r0, tos, lsl # 2 ]
+next c;
+
+labcreate (iv[]!)
+  bic r0, link, # &fc000003
+  ldr r0, [ r0, # -8 ]
+  add r0, r0, tos, lsl # 2
+  ldmfd sp !, { r1, tos }
+  str r1, [ r0, op ]
+next c;
+
+labcreate (iv[]+!)
+  bic r0, link, # &fc000003
+  ldr r0, [ r0, # -12 ]
+  add r0, r0, tos, lsl # 2
+  ldmfd sp !, { r2, tos }
+  ldr r1, [ r0, op ]!
+  add r1, r1, r2
+  str r1, [ r0 ]
+next c;
+
+labcreate doobj
+  stmfd sp !, { tos }
+  bic tos, link, # &fc000003
+  add tos, tos, # 4
+next c;
+
+
+code ((findm))
+  ldmfd sp !, { r0 }
+  begin
+    ldr tos, [ tos ]
+    teq tos, # 0
+    next eq
+    ldr r1, [ tos, # 4 ]
+    cmp r0, r1
+  0= until
+  add tos, tos, # 8
+  stmfd sp !, { tos }
+  mvn tos, # 0
+next c;
+
+code hash   ( ad cnt -- hash )
+  ldmfd sp !, { r0 }
+  mov r1, tos
+  mov tos, # 0
+  begin
+    ldrb r2, [ r0 ], # 1
+    eor tos, r2, tos, lsl # 1
+    sub s r1, r1, # 1
+  0= until
+next c;
+
+code init-locals
+  ldr r0, lp
+  stmfd rp !, { r0 }
+  str rp, lp
+  ldr r0, [ ip ], # 4
+  and r1, r0, # &ff
+  sub rp, rp, r1, lsl # 2
+  mov r0, r0, lsr # 8
+  and s r0, r0, # &ff
+  0<> if
+    begin
+      stmfd rp !, { tos }
+      ldmfd sp !, { tos }
+      sub s r0, r0, # 1
+    0= until
+  then
+next c;
+
+code unparms
+  ldr rp, lp
+  ldmfd rp !, { r0 }
+  str r0, lp
+next c;
+
+code _localalloc
+  sub rp, rp, tos
+  bic rp, rp, # 3
+  mov tos, rp
+next c;
+
+code drop      ( n -- )
+  ldmfd sp !, { tos }
+next c;
+
+code dup       ( n -- n n )
+  stmfd sp !, { tos }
+next c;
+
+code swap      ( n1 n2 -- n2 n1 )
+  ldr r0, [ sp ]
+  str tos, [ sp ]
+  mov tos, r0
+next c;
+
+
+code over      ( n1 n2 -- n1 n2 n1 )
+  stmfd sp !, { tos }
+  ldr tos, [ sp, # 4 ]
+next c;
+
+code rot       ( n1 n2 n3 -- n2 n3 n1 )
+  mov r0, tos
+  ldmfd sp !, { r1, tos }
+  stmfd sp !, { r0, r1 }
+next c;
+
+code -rot      ( n1 n2 n3 -- n3 n1 n2 )
+  ldmfd sp !, { r0, r1 }
+  stmfd sp !, { r1, tos }
+  mov tos, r0
+next c;
+
+code ?dup      ( n -- 0 | n n )
+  orr s tos, tos, tos
+  stmfd ne sp !, { tos }
+next c;
+
+code -dup
+ orr s tos, tos, tos
+ stmfd ne sp !, { tos }
+next c;
+
+code nip       ( n1 n2 -- n2 )
+  add sp, sp, # 4
+next c;
+
+code tuck      ( n1 n2 -- n2 n1 n2 )
+  ldmfd sp !, { r0 }
+  stmfd sp !, { r0, tos }
+next c;
+
+code pick      ( nk ... n0 k -- nk ... n0 nk )
+  ldr tos, [ sp, tos, lsl # 2 ]
+next c;
+
+code depth     ( -- n )
+  stmfd sp !, { tos }
+  adr tos, sp0
+  ldr tos, [ tos ]
+  sub tos, tos, sp
+  mov tos, tos, asr # 2
+next c;
+
+\ Push the address of the top element on the stack (prior to push).
+code sp@       ( -- n )
+  stmfd sp !, { tos }
+  mov tos, sp
+next c;
+
+\ Set the parameter stack pointer to specified value.
+code sp!       ( n -- )
+  mov sp, tos
+  ldmfd sp !, { tos }
+next c;
+
+
+\ address of the top element of the return stack
+code rp@       ( -- ad )
+  stmfd sp !, { tos }
+  mov tos, rp
+next c;
+
+\ Set the return stack pointer to ad.
+code rp!       ( ad -- )
+  mov rp, tos
+  ldmfd sp !, { tos }
+next c;
+
+code >r        ( n -- )
+  stmfd rp !, { tos }
+  ldmfd sp !, { tos }
+next c;
+
+code r>        ( -- n )
+  stmfd sp !, { tos }
+  ldmfd rp !, { tos }
+next c;
+
+code r@        ( -- n )
+  stmfd sp !, { tos }
+  ldr tos, [ rp ]
+next c;
+
+code dup>r     ( n -- n )
+  stmfd rp !, { tos }
+next c;
+
+code r>drop    ( -- )
+  add rp, rp, # 4
+next c;
+
+code 2>r       ( d -- )
+  mov r0, tos
+  ldmfd sp !, { r1, tos }
+  stmfd rp !, { r0, r1 }
+next c;
+
+code 2r>       ( -- d )
+  ldr r0, [ rp, # 4 ]
+  stmfd sp !, { r0, tos }
+  ldr tos, [ rp ], # 8
+next c;
+
+code 2r@       ( -- d )
+  ldr r0, [ rp, # 4 ]
+  stmfd sp !, { r0, tos }
+  ldr tos, [ rp ]
+next c;
+
+code @         ( ad -- n )   \ Fetch a 32 bit value from addr
+  ldr tos, [ tos ]
+next c;
+
+code !         ( n ad -- )   \ Store value n into the address addr
+  mov r0, tos
+  ldmfd sp !, { r1, tos }
+  str r1, [ r0 ]
+next c;
+
+code +!        ( n ad -- )
+  mov r1, tos
+  ldmfd sp !, { r0, tos }
+  ldr r2, [ r1 ]
+  add r2, r2, r0
+  str r2, [ r1 ]
+next c;
+
+code u/ ( n n1 -- n2 )
+ mov r1, tos
+ ldmfd sp !, { r0 }
+ udiv tos, r0, r1
+next c;
+
+code s/ ( n n1 -- n2 )
+ mov r1, tos
+ ldmfd sp !, { r0 }
+ sdiv tos, r0, r1
+next c;
+
+code c@        ( ad -- c )
+  ldrb tos, [ tos ]
+next c;
+
+code c!        ( c ad -- )
+  mov r0, tos
+  ldmfd sp !, { r1, tos }
+  strb r1, [ r0 ]
+next c;
+
+code c+!       ( c ad -- )
+  mov r1, tos
+  ldmfd sp !, { r0, tos }
+  ldrb r2, [ r1 ]
+  add r2, r2, r0
+  strb r2, [ r1 ]
+next c;
+
+\ non aligned fetch
+code na@       ( ad -- n )
+  ldrb r0, [ tos ]
+  ldrb r1, [ tos, # 1 ]
+  add r0, r0, r1, lsl # 8
+  ldrb r1, [ tos, # 2 ]
+  add r0, r0, r1, lsl # 16
+  ldrb r1, [ tos, # 3 ]
+  add tos, r0, r1, lsl # 24
+next c;
+
+\ non aligned store
+code na!       ( n ad -- )
+  mov r0, tos
+  ldmfd sp !, { r1, tos }
+  strb r1, [ r0 ], # 1
+  mov r1, r1, lsr # 8
+  strb r1, [ r0 ], # 1
+  mov r1, r1, lsr # 8
+  strb r1, [ r0 ], # 1
+  mov r1, r1, lsr # 8
+  strb r1, [ r0 ], # 1
+next c;
+
+code call@     ( ad -- cfa )
+  ldr r0, [ tos ], # 8
+  mov r1, r0, lsr # 25
+  cmp r1, # 117
+  mov ne tos, r0
+  next ne
+  mov r0, r0, lsl # 8
+  mov r0, r0, asr # 6
+  add tos, tos, r0
+next c;
+
+\ 16 bit (half word) fetch
+code w@        ( ad -- n )
+  ldrb r0, [ tos ]
+  ldrb r1, [ tos, # 1 ]
+  add tos, r0, r1, lsl # 8
+next c;
+
+\ Fetch a 16 bit value from addr
+code sw@        ( ad -- n )
+  ldrb r0, [ tos ]
+  ldrb r1, [ tos, # 1 ]
+  add tos, r0, r1, lsl # 8
+  mov tos, tos, lsl # 16
+  mov tos, tos, asr # 16
+next c;
+
+\ Store 16 bit value n into the address addr
+code w!        ( n ad -- )
+  mov r0, tos
+  ldmfd sp !, { r1, tos }
+  strb r1, [ r0 ]
+  mov r1, r1, lsr # 8
+  strb r1, [ r0, # 1 ]
+next c;
+
+code w+!       ( n ad -- )
+  mov r1, tos
+  ldmfd sp !, { r0, tos }
+  ldrb r3, [ r1 ]
+  ldrb r2, [ r1, # 1 ]
+  add r2, r3, r2 lsl # 8 ]
+  add r2, r2, r0
+  strb r2, [ r1 ]
+  mov r2, r2, lsr # 8
+  strb r2, [ r1, # 1 ]
+next c;
+
+\ 4 constant cell
+
+code cell
+  stmfd sp !, { tos }
+  mov tos, # 4
+next c;
+
+code cells     ( n1 -- n2 )
+  mov tos, tos, lsl # 2
+next c;
+
+code cells+    ( n1 n2 -- n3 )
+  ldmfd sp !, { r0 }
+  add tos, r0, tos, lsl # 2
+next c;
+
+code cells-    ( n1 n2 -- n3 )
+  ldmfd sp !, { r0 }
+  sub tos, r0, tos, lsl # 2
+next c;
+
+code cell+     ( n1 -- n2 )
+  add tos, tos, # 4
+next c;
+
+code cell-     ( n1 -- n2 )
+  sub tos, tos, # 4
+next c;
+
+code +cells    ( n1 n2 -- n3 )
+  ldmfd sp !, { r0 }
+  add tos, tos, r0, lsl # 2
+next c;
+
+code -cells    ( n1 n2 -- n3 )
+  ldmfd sp !, { r0 }
+  sub tos, tos, r0, lsl # 2
+next c;
+
+code move      ( from to count -- )
+  mov s r3, tos
+  ldmfd sp !, { r0, r1, tos } \ to from
+  next eq
+  sub r2, r0, r1
+  cmp r2, r3
+  u>= if
+    begin
+      ldrb r2, [ r1 ], # 1
+      strb r2, [ r0 ], # 1
+      sub s r3, r3, # 1
+    0= until
+    next
+  else
+    add r0, r0, r3
+    add r1, r1, r3
+    sub r0, r0, # 1
+    sub r1, r1, # 1
+    begin
+      ldrb r2, [ r1 ], # -1
+      strb r2, [ r0 ], # -1
+      sub s r3, r3, # 1
+    0= until
+    next
+  then c;
+
+code fill      ( ad cnt c -- )
+  mov r0, tos
+  ldmfd sp !, { r1, r2, tos }
+  teq r1, # 0
+  next eq
+  begin
+    strb r0, [ r2 ], # 1
+    sub s r1, r1, # 1
+  0= until
+next c;
+
+\ 32 constant bl
+
+code bl
+  stmfd sp !, { tos }
+  mov tos, # 32
+next c;
+
+: erase        ( ad cnt -- )
+    0 fill ;
+
+: blank        ( ad cnt -- )
+    bl fill ;
+
+\ moves block of memory beginning at from !!! traditional !!!
+code cmove     ( from to count -- )
+  mov s r3, tos
+  ldmfd sp !, { r0, r1, tos } \ count, to from
+  next eq
+  begin
+    ldrb r2, [ r1 ], # 1
+    strb r2, [ r0 ], # 1
+    sub s r3, r3, # 1
+  0= until
+next c;
+
+\ moves block of memory beginning at from+count-1 !!! traditional !!!
+code cmove>    ( from to count -- )
+  mov s r3, tos
+  ldmfd sp !, { r0, r1, tos } \ count, to from
+  next eq
+  add r0, r0, r3
+  add r1, r1, r3
+  sub r0, r0, # 1
+  sub r1, r1, # 1
+  begin
+    ldrb r2, [ r1 ], # -1
+    strb r2, [ r0 ], # -1
+    sub s r3, r3, # 1
+  0= until
+next c;
+
+code and       ( n1 n2 -- n3 )
+  ldmfd sp !, { r0 }
+  and tos, tos, r0
+next c;
+
+code or        ( n1 n2 -- n3 )
+  ldmfd sp !, { r0 }
+  orr tos, tos, r0
+next c;
+
+code xor       ( n1 n2 -- n3 )
+  ldmfd sp !, { r0 }
+  eor tos, tos, r0
+next c;
+
+code invert    ( n1 -- n2 )
+  mvn tos, tos
+next c;
+
+code lshift    ( n1 n2 -- n3 )
+  ldmfd sp !, { r0 }
+  mov tos, r0, lsl tos
+next c;
+
+code rshift    ( n1 n2 -- n3 )
+  ldmfd sp !, { r0 }
+  mov tos, r0, lsr tos
+next c;
+
+-1 constant true
+ 0 constant false
+
+
+
+code incr      ( ad -- )
+  ldr r0, [ tos ]
+  add r0, r0, # 1
+  str r0, [ tos ]
+  ldmfd sp !, { tos }
+next c;
+
+code decr      ( ad -- )
+  ldr r0, [ tos ]
+  sub r0, r0, # 1
+  str r0, [ tos ]
+  ldmfd sp !, { tos }
+next c;
+
+code on        ( ad -- )
+  mvn r0, # 0
+  str r0, [ tos ]
+  ldmfd sp !, { tos }
+next c;
+
+code off       ( ad -- )
+  mov r0, # 0
+  str r0, [ tos ]
+  ldmfd sp !, { tos }
+next c;
+
+code toggle    ( ad byte -- )
+  mov r0, tos
+  ldmfd sp !, { r1, tos }
+  ldrb r2, [ r1 ]
+  eor r2, r2, r0
+  strb r2, [ r1 ]
+next c;
+
+code +         ( n1 n2 -- n3 )
+  ldmfd sp !, { r0 }
+  add tos, tos, r0
+next c;
+
+code -         ( n1 n2 -- n3 )
+  ldmfd sp !, { r0 }
+  sub tos, r0, tos
+next c;
+
+code negate    ( n1 -- n2 )
+  rsb tos, tos, # 0
+next c;
+
+code abs       ( n1 -- n2 )
+  eor s tos, tos, tos, asr # 32
+  adc tos, tos, # 0
+next c;
+
+code 0
+ stmfd sp !, { tos }
+ eor tos, tos, tos
+next c;
+
+code 1
+ stmfd sp !, { tos }
+ mov tos, # 1
+next c;
+
+code 2
+ stmfd sp !, { tos }
+ mov tos, # 2
+next c;
+
+code 4
+ stmfd sp !, { tos }
+ mov tos, # 4
+next c;
+
+
+code 8
+ stmfd sp !, { tos }
+ mov tos, # 8
+next c;
+
+
+code 16
+ stmfd sp !, { tos }
+ mov tos, # 16
+next c;
+
+code 32
+ stmfd sp !, { tos }
+ mov tos, # 32
+next c;
+
+code 260
+ stmfd sp !, { tos }
+ mov tos, # 260
+next c;
+
+
+
+\ 0 constant 0
+\ 1 constant 1
+
+code 2*        ( n1 -- n2 )
+  mov tos, tos, lsl # 1
+next c;
+
+code 4*        ( n1 -- n2 )
+  mov tos, tos, lsl # 2
+next c;
+
+code 8*        ( n1 -- n2 )
+  mov tos, tos, lsl # 3
+next c;
+
+code 16*        ( n1 -- n2 )
+  mov tos, tos, lsl # 4
+next c;
+
+code 32*        ( n1 -- n2 )
+  mov tos, tos, lsl # 5
+next c;
+
+code -32* ( n -- n' )
+  mov tos, tos, lsl # 5
+  rsb tos, tos, # 0
+next c;
+
+
+code 2/        ( n1 -- n2 )
+  mov tos, tos, asr # 1
+next c;
+
+code 4/        ( n1 -- n2 )
+  mov tos, tos, asr # 2
+next c;
+
+code 8/        ( n1 -- n2 )
+  mov tos, tos, asr # 3
+next c;
+
+code 16/        ( n1 -- n2 )
+  mov tos, tos, asr # 4
+next c;
+
+code 32/        ( n1 -- n2 )
+  mov tos, tos, asr # 5
+next c;
+
+code u2/       ( n1 -- n2 )
+  mov tos, tos, lsr # 1
+next c;
+
+code u4/       ( n1 -- n2 )
+  mov tos, tos, lsr # 2
+next c;
+
+code u8/       ( n1 -- n2 )
+  mov tos, tos, lsr # 3
+next c;
+
+code u16/       ( n1 -- n2 )
+  mov tos, tos, lsr # 4
+next c;
+
+code u32/       ( n1 -- n2 )
+  mov tos, tos, lsr # 5
+next c;
+
+code 10*      ( n1 -- n2 )
+ mov r0, tos, lsl # 1
+ add tos, tos, r0, lsl # 3
+next c;
+
+code ~10/       ( n1 -- n2 )
+ mov r0, # 205
+ mul r1, r0, tos
+ mov tos, r1, lsr # 11
+next c;
+
+code 1+        ( n1 -- n2 )
+  add tos, tos, # 1
+next c;
+
+code 2+        ( n1 -- n2 )
+  add tos, tos, # 2
+next c;
+
+code 4+        ( n1 -- n2 )
+  add tos, tos, # 4
+next c;
+
+code 8+        ( n1 -- n2 )
+  add tos, tos, # 8
+next c;
+
+code 16+        ( n1 -- n2 )
+  add tos, tos, # 16
+next c;
+
+code 32+        ( n1 -- n2 )
+  add tos, tos, # 32
+next c;
+
+code 1-        ( n1 -- n2 )
+  sub tos, tos, # 1
+next c;
+
+code d2*       ( d1 -- d2 )
+  ldr r0, [ sp ]
+  add s r0, r0, r0
+  adc tos, tos, tos
+  str r0, [ sp ]
+next c;
+
+code d2/       ( d1 -- d2 )
+  ldmfd sp !, { r0 }
+  mov s tos, tos, asr # 1
+  mov r0, r0, rrx
+  stmfd sp !, { r0 }
+next c;
+
+code um*       ( u1 u2 -- d )
+  ldmfd sp !, { r0 }
+  mov r2, r0, lsr # 16
+  mov r1, tos, lsr # 16
+  eor r0, r0, r2, lsl # 16
+  eor tos, tos, r1, lsl # 16
+  mul r4, r1, r2     \ hi
+  mul r3, tos, r0    \ lo
+  mul r2, tos, r2
+  mul r1, r0, r1
+  add s r0, r0, r1
+  add cs r4, r4, # &10000
+  add s r3, r3, r0, lsl # 16
+  adc tos, r4, r0, lsr # 16
+  stmfd sp !, { r3 }
+next c;
+
+code word-split ( u -- lo hi )
+  mov r0, tos, lsl # 16
+  mov r0, r0, lsr # 16
+  stmfd sp !, { r0 }
+  mov tos, tos, lsr # 16
+next c;
+
+code word-join ( lo hi -- n )
+  ldmfd sp !, { r0 }
+  add tos, r0, tos, lsl # 16
+next c;
+
+code 0=        ( n -- f )
+  sub s tos, tos, # 1
+  sbc tos, tos, tos
+next c;
+
+code 0<>       ( n -- f )
+  orr s tos, tos, tos
+  mvn ne tos, # 0
+next c;
+
+code 0<        ( n -- f )
+  mov tos, tos, asr # 32
+next c;
+
+code 0>        ( n -- f )
+  sub tos, tos, # 1
+  mvn tos, tos, asr # 32
+next c;
+
+code =         ( n1 n2 -- f )
+  ldmfd sp !, { r0 }
+  cmp s r0, tos
+  mvn eq tos, # 0
+  mov ne tos, # 0
+next c;
+
+code <>        ( n1 n2 -- f )
+  ldmfd sp !, { r0 }
+  sub s tos, r0, tos
+  mvn ne tos, # 0
+next c;
+
+code <         ( n1 n2 -- f )
+  ldmfd sp !, { r0 }
+  cmp r0, tos
+  mvn lt tos, # 0
+  mov ge tos, # 0
+next c;
+
+code >         ( n1 n2 -- f )
+  ldmfd sp !, { r0 }
+  cmp tos, r0
+  mvn lt tos, # 0
+  mov ge tos, # 0
+next c;
+
+code u<        ( u1 u2 -- f )
+  ldmfd sp !, { r0 }
+  sub s tos, r0, tos
+  sbc tos, tos, tos
+next c;
+
+code u>        ( u1 u2 -- f )
+  ldmfd sp !, { r0 }
+  sub s tos, tos, r0
+  sbc tos, tos, tos
+next c;
+
+code du<       ( ud1 ud2 -- f )
+  ldmfd sp !, { r0, r1, r2 }
+  sub s r2, r2, r0
+  sbc s r1, r1, tos
+  sbc tos, r2, r2
+next c;
+
+code umin      ( u1 u2 -- u3 )
+  ldmfd sp !, { r0 }
+  cmp tos, r0
+  mov cs tos, r0
+next c;
+
+code min       ( n1 n2 -- n3 )
+  ldmfd sp !, { r0 }
+  cmp tos, r0
+  mov gt tos, r0
+next c;
+
+code umax      ( u1 u2 -- u3 )
+  ldmfd sp !, { r0 }
+  cmp tos, r0
+  mov cc tos, r0
+next c;
+
+code max       ( n1 n2 -- n3 )
+  ldmfd sp !, { r0 }
+  cmp tos, r0
+  mov lt tos, r0
+next c;
+
+code 0max      ( n1 -- n2 )
+  cmp tos, # 0
+  mov lt tos, # 0
+next c;
+
+code between   ( n lo hi -- f ) \ true if lo<=n<=hi
+  mov r2, tos
+  mov tos, # 0
+  ldmfd sp !, { r0, r1 }
+  cmp r1, r2
+  next gt
+  cmp r0, r1
+  mvn le tos, # 0
+next c;
+
+code within    ( n lo hi -- f ) \ true if lo<=n<hi
+  mov r2, tos
+  mov tos, # 0
+  ldmfd sp !, { r0, r1 }
+  cmp r1, r2
+  next ge
+  cmp r0, r1
+  mvn le tos, # 0
+next c;
+
+code 2@        ( ad -- d )
+  ldmfd tos, { r0, r1 }
+  mov tos, r0
+  stmfd sp !, { r1 }
+next c;
+
+code 2!        ( d ad -- )
+  mov r2, tos
+  ldmfd sp !, { r0, r1, tos }
+  stmea r2, { r0, r1 }
+next c;
+
+code 2drop     ( d -- )
+  add sp, sp, # 4
+  ldmfd sp !, { tos }
+next c;
+
+code 2dup      ( d -- d d )
+  ldr r0, [ sp ]
+  stmfd sp !, { r0, tos }
+next c;
+
+code 2swap     ( d1 d2 -- d2 d1 )
+  ldmfd sp !, { r0, r1, r2 }
+  stmfd sp !, { r0 }
+  stmfd sp !, { r2, tos }
+  mov tos, r1
+next c;
+
+code 2over     ( d1 d2 -- d1 d2 d1 )
+  ldr r0, [ sp, # 8 ]
+  stmfd sp !, { r0, tos }
+  ldr tos, [ sp, # 12 ]
+next c;
+
+code 2rot      ( d1 d2 d3 -- d2 d3 d1 )
+  ldmfd sp !, { r0, r1, r2, r3, r4 }
+  stmfd sp !, { r0, r1, r2 }
+  stmfd sp !, { r4, tos }
+  mov tos, r3
+next c;
+
+code d+        ( d1 d2 -- d3 )
+  ldmfd sp !, { r0, r1, r2 }
+  add s r0, r0, r2
+  adc tos, tos, r1
+  stmfd sp !, { r0 }
+next c;
+
+code d-        ( d1 d2 -- d3 )
+  ldmfd sp !, { r0, r1, r2 }
+  sub s r0, r2, r0
+  sbc tos, r1, tos
+  stmfd sp !, { r0 }
+next c;
+
+code dnegate   ( d1 -- d2 )
+  ldmfd sp !, { r0 }
+  rsb s r0, r0, # 0
+  rsc tos, tos, # 0
+  stmfd sp !, { r0 }
+next c;
+
+code dabs      ( d1 -- d2 )
+  tst tos, # &80000000
+  next eq
+  ldmfd sp !, { r0 }
+  rsb s r0, r0, # 0
+  rsc tos, tos, # 0
+  stmfd sp !, { r0 }
+next c;
+
+code s>d       ( n -- d )
+  stmfd sp !, { tos }
+  mov tos, tos, asr # 32
+next c;
+
+code m*        ( n1 n2 -- d )
+  ldmfd sp !, { r0 }
+  eor r5, r0, tos
+  tst r0, # &80000000
+  rsb ne r0, r0, # 0
+  tst tos, # &80000000
+  rsb ne tos, tos, # 0
+  mov r2, r0, lsr # 16
+  mov r1, tos, lsr # 16
+  eor r0, r0, r2, lsl # 16
+  eor tos, tos, r1, lsl # 16
+  mul r4, r1, r2     \ hi
+  mul r3, tos, r0    \ lo
+  mul r2, tos, r2
+  mul r1, r0, r1
+  add s r0, r2, r1
+  add cs r4, r4, # &10000
+  add s r3, r3, r0, lsl # 16
+  adc tos, r4, r0, lsr # 16
+  tst r5, # &80000000
+  0<> if
+    rsb s r3, r3, # 0
+    rsc tos, tos, # 0
+  then
+  stmfd sp !, { r3 }
+next c;
+
+\ 1 2 3 * +
+code *+ ( n1 n2 n3 -- n4  )
+ mov r0, tos
+ ldmfd sp !, { r1, r2 }
+ mla tos, r0, r1, r2
+next c;
+
+
+code *         ( n1 n2 -- n3 )
+  ldmfd sp !, { r0 }
+  mul tos, r0, tos
+next c;
+
+label division
+  add s r1, r1, r1
+  adc s r0, tos, r0, lsl # 1
+  sub cc r0, r0, tos
+  adc s r1, r1, r1
+  adc s r0, tos, r0, lsl # 1
+  sub cc r0, r0, tos
+  adc s r1, r1, r1
+  adc s r0, tos, r0, lsl # 1
+  sub cc r0, r0, tos
+  adc s r1, r1, r1
+  adc s r0, tos, r0, lsl # 1  \ 4
+  sub cc r0, r0, tos
+  adc s r1, r1, r1
+  adc s r0, tos, r0, lsl # 1
+  sub cc r0, r0, tos
+  adc s r1, r1, r1
+  adc s r0, tos, r0, lsl # 1
+  sub cc r0, r0, tos
+  adc s r1, r1, r1
+  adc s r0, tos, r0, lsl # 1
+  sub cc r0, r0, tos
+  adc s r1, r1, r1
+  adc s r0, tos, r0, lsl # 1  \ 8
+  sub cc r0, r0, tos
+  adc s r1, r1, r1
+  adc s r0, tos, r0, lsl # 1
+  sub cc r0, r0, tos
+  adc s r1, r1, r1
+  adc s r0, tos, r0, lsl # 1
+  sub cc r0, r0, tos
+  adc s r1, r1, r1
+  adc s r0, tos, r0, lsl # 1
+  sub cc r0, r0, tos
+  adc s r1, r1, r1
+  adc s r0, tos, r0, lsl # 1  \ 12
+  sub cc r0, r0, tos
+  adc s r1, r1, r1
+  adc s r0, tos, r0, lsl # 1
+  sub cc r0, r0, tos
+  adc s r1, r1, r1
+  adc s r0, tos, r0, lsl # 1
+  sub cc r0, r0, tos
+  adc s r1, r1, r1
+  adc s r0, tos, r0, lsl # 1
+  sub cc r0, r0, tos
+  adc s r1, r1, r1
+  adc s r0, tos, r0, lsl # 1  \ 16
+  sub cc r0, r0, tos
+  adc s r1, r1, r1
+  adc s r0, tos, r0, lsl # 1
+  sub cc r0, r0, tos
+  adc s r1, r1, r1
+  adc s r0, tos, r0, lsl # 1
+  sub cc r0, r0, tos
+  adc s r1, r1, r1
+  adc s r0, tos, r0, lsl # 1
+  sub cc r0, r0, tos
+  adc s r1, r1, r1
+  adc s r0, tos, r0, lsl # 1  \ 20
+  sub cc r0, r0, tos
+  adc s r1, r1, r1
+  adc s r0, tos, r0, lsl # 1
+  sub cc r0, r0, tos
+  adc s r1, r1, r1
+  adc s r0, tos, r0, lsl # 1
+  sub cc r0, r0, tos
+  adc s r1, r1, r1
+  adc s r0, tos, r0, lsl # 1
+  sub cc r0, r0, tos
+  adc s r1, r1, r1
+  adc s r0, tos, r0, lsl # 1  \ 24
+  sub cc r0, r0, tos
+  adc s r1, r1, r1
+  adc s r0, tos, r0, lsl # 1
+  sub cc r0, r0, tos
+  adc s r1, r1, r1
+  adc s r0, tos, r0, lsl # 1
+  sub cc r0, r0, tos
+  adc s r1, r1, r1
+  adc s r0, tos, r0, lsl # 1
+  sub cc r0, r0, tos
+  adc s r1, r1, r1
+  adc s r0, tos, r0, lsl # 1  \ 28
+  sub cc r0, r0, tos
+  adc s r1, r1, r1
+  adc s r0, tos, r0, lsl # 1
+  sub cc r0, r0, tos
+  adc s r1, r1, r1
+  adc s r0, tos, r0, lsl # 1
+  sub cc r0, r0, tos
+  adc s r1, r1, r1
+  adc s r0, tos, r0, lsl # 1
+  sub cc r0, r0, tos
+  adc s r1, r1, r1
+  adc s r0, tos, r0, lsl # 1  \ 32
+  sub cc r0, r0, tos
+  adc tos, r1, r1
+  mov pc, link c;
+
+code um/mod    ( ud un -- urem uquot )
+  ldmfd sp !, { r0, r1 }
+  cmp r0, tos
+  b cs 1 $
+  rsb s tos, tos, # 0
+  b eq 1 $
+  bl division
+  stmfd sp !, { r0 }
+  next
+1 $:
+  mvn tos, # 0
+  stmfd sp !, { tos }
+next c;
+
+code sm/rem
+  ldmfd sp !, { r0, r1 }
+  mov s r3, r0
+  0< if
+    rsb s r1, r1, # 0
+    rsc r0, r0, # 0
+  then
+  mov s r2, tos
+  rsb pl tos, tos, # 0
+  b eq 1 $
+  bl division
+  teq r0, # 0
+  0<> if
+    eor s r3, r3, r2
+      rsb mi tos, tos, # 0
+      rsb mi r0, r0, # 0
+    cmp r2, # 0
+      rsb mi r0, r0, # 0
+  else
+    eor s r3, r3, r2
+    rsb mi tos, tos, # 0
+  then
+  stmfd sp !, { r0 }
+  next
+1 $:
+  mvn tos, # 0
+  stmfd sp !, { tos }
+next c;
+
+code fm/mod
+  ldmfd sp !, { r0, r1 }
+  mov s r3, r0
+  0< if
+    rsb s r1, r1, # 0
+    rsc r0, r0, # 0
+  then
+  mov s r2, tos
+  rsb pl tos, tos, # 0
+  b eq 1 $
+  bl division
+  teq r0, # 0
+  0<> if
+    cmp r2, # 0
+      rsb mi r0, r0, # 0
+    eor s r3, r3, r2
+      rsb mi tos, tos, # 0
+      sub mi r0, r2, r0
+      sub mi tos, tos, # 1
+  else
+    eor s r3, r3, r2
+    rsb mi tos, tos, # 0
+  then
+  stmfd sp !, { r0 }
+  next
+1 $:
+  mvn tos, # 0
+  stmfd sp !, { tos }
+next c;
+
+: /mod
+    >r s>d r> fm/mod ;
+
+: /
+    /mod nip ;
+
+: mod          ( n1 n2 -- rem )
+    /mod drop ;
+
+: */mod        ( n1 n2 n3 -- rem quot )
+    >r m* r> fm/mod ;
+
+: */           ( n1 n2 n3 -- quot )
+    */mod nip ;
+
+: mu/mod       ( ud u -- rem dquot )
+    >r 0  r@  um/mod  r>  swap  >r um/mod r> ;
+
+: ad>of ( to from -- off )
+    8 + - 2 rshift &ffffff and ;
+
+
+
+create pocket         260 allot
+create cur-file       260 allot
+create temp$          260 allot
+
+12 constant #vocs
+
+create context        #vocs cells allot
+
+variable current
+variable last
+variable voc-link
+0 value source-id
+  create filebuf        260 allot
+  create tib            260 allot
+  create (source)   here 0 , tib ,
+constant #tib
+variable >in
+variable state
+variable warning       -1 warning !-t
+variable caps          -1 caps !-t
+
+code source
+  adr r2, (source)
+  ldmfd r2, { r0, r1 }
+  stmfd sp !, { r1, tos }
+  mov tos, r0
+next c;
+
+labcreate dovoc
+  bic link, link, # &fc000003
+  add link, link, # 8
+  str link, context
+next c;
+
+
+: pad
+    here 260 + ;
+
+code count     ( ad -- ad+1 cnt )
+  add tos, tos, # 1
+  stmfd sp !, { tos }
+  ldrb tos, [ tos, # -1 ]
+next c;
+
+code wcount    ( ad -- ad+2 cnt )
+  add r0, tos, # 2
+  stmfd sp !, { r0 }
+  ldrb tos, [ r0, # -2 ]
+  ldrb r0, [ r0, # -1 ]
+  add tos, tos, r0, lsl # 8
+next c;
+
+code lcount    ( ad -- ad+4 cnt )
+  add tos, tos, # 4
+  stmfd sp !, { tos }
+  ldr tos, [ tos, # -4 ]
+next c;
+
+code zcount    ( ad -- ad len )
+  stmfd sp !, { tos }
+  bic r0, tos, # 3
+  ldr r1, [ r0 ]
+  mov r2, # 1
+  orr r2, r2, # &100
+  orr s r2, r2, r2, asl # 16
+  sbc s r3, tos, r0
+  orr gt r1, r1, r3, asl # 15
+  orr gt r1, r1, r3, asl # 14
+  orr pl r1, r1, # &ff
+1 $:
+  sub s r3, r1, r2
+  eor cs r3, r3, r1
+  bic cs s r3, r2, r3
+  ldr eq r1, [ r0, # 4 ]!
+  b eq 1 $
+  tst r1, # &ff
+  add ne r0, r0, # 1
+  tst ne r1, # &ff00
+  add ne r0, r0, # 1
+  tst ne r1, # &ff0000
+  add ne r0, r0, # 1
+  sub tos, r0, tos
+next c;
+
+\ : place
+\     swap 255 min 0max swap 2dup c! 1+ swap move ;
+
+code place     ( from cnt to -- ) \ Move "cnt" characters from "from" to "to" + 1
+                                  \ with preceeding count byte at "to".
+  mov r3, tos
+  ldmfd sp !, { r0, r1, tos }
+  strb r0, [ r3 ], # 1
+  orr s r0, r0, r0
+  next eq
+  begin
+    ldrb r2, [ r1 ], # 1
+    strb r2, [ r3 ], # 1
+    sub s r0, r0, # 1
+  0= until
+next c;
+
+\ : place+
+\     >r 255 min 0max 255 r@ c@ - min r> 2dup 2>r
+\     count + swap move 2r> c+! ;
+
+code +place     ( from cnt to -- ) \ append text to counted string
+  mov r3, tos
+  ldrb r4, [ r3 ]
+  ldmfd sp !, { r0, r1, tos }
+  add r2, r4, r0
+  strb r2, [ r3 ], # 1
+  add r3, r3, r4
+  orr s r0, r0, r0
+  next eq
+  begin
+    ldrb r2, [ r1 ], # 1
+    strb r2, [ r3 ], # 1
+    sub s r0, r0, # 1
+  0= until
+next c;
+
+\ store zero terminated text in memory
+code z!  ( to from  -- )
+  mov r0, tos
+  ldmfd sp !, { r1, tos }
+  begin
+   ldrb r3, [ r1 ], # 1
+   strb r3, [ r0 ], # 1
+   teq r3, # 0
+  0= until
+next c;
+
+code -trailing ( ad len -- ad len' )
+  ldr r0, [ sp ]
+  begin
+    sub s tos, tos, # 1
+  b cc 1 $
+    ldrb r1, [ r0, tos ]
+    teq r1, # 32
+  0<> until
+1 $: add tos, tos, # 1
+next c;
+
+code -nulls    ( ad len -- ad len' )
+  ldr r0, [ sp ]
+  begin
+    sub s tos, tos, # 1
+  b cc 1 $
+    ldrb r1, [ r0, tos ]
+    teq r1, # 0
+  0<> until
+1 $: add tos, tos, # 1
+next c;
+
+code /string   ( ad len c -- ad' len' )
+  ldmfd sp !, { r0, r1 }
+  cmp tos, # 0
+  0>= if
+    cmp r0, tos
+    mov ls tos, r0
+  then
+  add r1, r1, tos
+  sub tos, r0, tos
+  stmfd sp !, { r1 }
+next c;
+
+code upc       ( c -- c' )
+  tst tos, # 64
+  next eq
+  cmp tos, # 192
+  bic cs tos, tos, # 32
+  next cs
+  cmp tos, # ascii {
+  bic cc tos, tos, # 32
+next c;
+
+code upper     ( ad len -- )
+  mov r0, tos
+  ldmfd sp !, { r1, tos }
+  begin
+    ldrb r3, [ r1 ]
+    tst r3, # 64
+    b eq 1 $
+    cmp r3, # 192
+    bic cs r3, r3, # 32
+    b cs 1 $
+    cmp r3, # ascii {
+    bic cc r3, r3, # 32
+1 $:
+    strb r3, [ r1 ], # 1
+    sub s r0, r0, # 1
+  0= until
+next c;
+
+code ?uppercase ( ad -- ad )
+  adr r0, caps
+  ldr r0, [ r0 ]
+  teq r0, # 0
+  next eq
+  mov r1, tos
+  ldrb r0, [ r1 ], # 1
+  teq r0, # 0
+  0<> if
+    begin
+      ldrb r3, [ r1 ]
+      tst r3, # 64
+      b eq 1 $
+      cmp r3, # 192
+      bic cs r3, r3, # 32
+      b cs 1 $
+      cmp r3, # ascii {
+      bic cc r3, r3, # 32
+1 $:
+      strb r3, [ r1 ], # 1
+      sub s r0, r0, # 1
+    0= until
+  then
+next c;
+
+defer outpause ' noop is outpause
+
+code OS_WriteC  ( c -- )
+  mov r0, tos
+  swi " OS_WriteC"
+  ldmfd sp !, { tos }
+next c;
+
+variable #out
+
+: _emit
+    OS_WriteC outpause 1 #out +! ;
+
+defer emit ' _emit is emit
+
+code %_key?   ( -- f )
+  stmfd sp !, { tos }
+  mov r0, # &c6
+  mov r1, # 0
+  mov r2, # &ff
+  swi " OS_Byte"
+  teq r1, # 0
+  0= if \ not execing from file.
+    mov r0, # &b1 \ input device
+    mov r2, # &ff
+    swi " OS_Byte"
+    rsb r1, r1, # &ff
+    mov r0, # &80
+    swi " OS_Byte"
+    add tos, r1, r2, lsl # 8
+    next
+  then
+  mov r0, # 5
+  swi " OS_Args"
+  sub s tos, r2, # 1
+  sbc tos, tos, tos
+next c;
+
+: _key? pause  %_key? ;
+
+defer key? ' _key? is key?
+
+code %_key     ( -- c )
+  stmfd sp !, { tos }
+  swi " OS_ReadC"
+  mov tos, r0
+  next cc
+  cmp r0, # 27
+  next ne
+  mov r0, # 126
+  swi " OS_Byte"
+next c;
+
+: _key
+    begin key? until
+    %_key ;
+defer key  ' _key is key
+
+: _beep
+    7 emit ;
+defer beep   ' _beep is beep
+
+0 value accept-cnt   \ current count of chars accepted
+
+: _accept      ( a1 n1 -- n2 )
+    0 swap 0
+    ?do     drop
+      i to accept-cnt \ save in case we need it
+      key
+      case
+        8 of i 1 <           \ if input is empty
+             if 0            \ do nothing but
+               beep          \ beep at user
+             else 1-         \ decrement address 1
+               -1 8 emit bl emit 8 emit
+             then                            endof
+       27 of dup c@ emit 1+ 1                endof
+       13 of i leave                         endof
+             dup emit
+             2dup swap c!    \ place the character
+             swap 1+ swap    \ bump the address
+             1 swap          \ loop increment
+      endcase
+      i 1+ swap       \ in case loop completes
+   +loop nip ;
+
+defer accept ' _accept is accept
+
+code OS_WriteN
+  mov r1, tos
+  ldmfd sp !, { r0, tos }
+  swi " OS_WriteN"
+next c;
+
+: _type
+    0max dup #out +! OS_WriteN outpause ;
+defer type ' _type is type
+
+code os_newline ( -- )
+  swi " OS_NewLine"
+next c;
+
+: _cr
+    OS_NewLine #out off ;
+defer cr   ' _cr is cr
+
+: _cls #out off ;
+defer cls  ' _cls is cls
+
+: _?cr ( n -- ) #out @ + ( lmargin ) 50 > if cr then ;
+defer ?cr  ' _?cr is ?cr
+
+code os_exit
+  mov r0, tos
+  ldmfd sp !, { r1, r2 }
+  swi " OS_Exit"
+next c;
+
+: _bye
+    ."  Leaving.." cr
+    0 &58454241 0 os_exit ;
+defer bye  ' _bye is bye
+
+: _console ;
+defer console ' _console is console
+
+&c0 constant r/w
+&40 constant r/o
+: bin ;
+
+code OS_Find ( fileid/name reason -- handle | false )
+  ldmfd sp !, { r1 }
+  mov r0, tos
+  swi x " OS_Find"
+  mov vs tos, # 0
+  mov vc tos, r0
+next c;
+
+: open-file   ( ad len fam -- fileid ior )
+    >r over + 0 swap c! r> OS_Find dup 0= ;
+
+: close-file  ( fileid -- ior )
+    0 OS_Find ;
+
+code read-file   ( ad len fileid -- bytesread ior )
+  ldmfd sp !, { r1, r2 }
+  mov r3, r1
+  mov r5, r1
+  mov r1, tos
+  mov r0, # 4
+  swi x " OS_GBPB"
+  mov vc tos, # 0
+  mvn vs tos, # 0
+  sub r5, r5, r3
+  stmfd sp !, { r5 }
+next c;
+
+code create-file ( ad len fam -- fileid ior )
+  ldmfd sp !, { r0, r1 }
+  mov r2, # 0
+  strb r2, [ r0, r1 ]
+  mov r0, # &83
+  swi x " OS_Find"
+  mov vc tos, # 0
+  mvn vs tos, # 0
+  stmfd sp !, { r0 }
+next c;
+
+code delete-file ( ad len -- ior )
+  mov r0, # 6
+  ldmfd sp !, { r1 }
+  mov r2, # 0
+  strb r2, [ r1, tos ]
+  swi x " OS_File"
+  mov vc tos, # 0
+  mvn vs tos, # 0
+next c;
+
+code write-file ( ad len fileid -- ior )
+  mov r0, # 2
+  mov r1, tos
+  ldmfd sp !, { r3, tos }
+  mov r2, tos
+  swi x " OS_GBPB"
+  mov vc tos, # 0
+  mvn vs tos, # 0
+next c;
+
+: write-line ( ad len fileid -- ior )
+    dup>r write-file 10 sp@ 1 r> write-file nip or ;
+
+16384 value iblen               \ current input buffer length
+16384 value ibfull              \ full buffer size, used to restore IBLEN
+    0 value inbuf               \ input buffer address
+    0 value instart
+    0 value inlength
+    0 value outbuf
+    0 value outlen
+    0 value cur-handle
+
+: _readl
+    inlength 0> 0=
+    if inbuf ibfull cur-handle read-file
+      if r>drop 0 -1 exit then
+      dup to iblen to inlength
+      inbuf to instart
+    then
+    instart inlength 2dup &0a scan dup>r
+    nip - outlen umin tuck outbuf swap cmove
+    dup 1+ dup +to instart negate +to inlength
+    dup +to outbuf dup negate +to outlen r> ;
+
+: read-line ( ad len fileid -- len flag ior )
+    to cur-handle to outlen to outbuf
+    inlength 0> 0= iblen ibfull < and
+    if 0 0 0 exit then
+    _readl
+    iblen ibfull < or 0=
+    if _readl drop + then
+    true 0 ;
+
+code OS_File
+  mov r0, tos
+  ldmfd sp !, { r1, r2, r3, r4, r5, tos }
+  swi x " OS_File"
+next c;
+
+: save-file   ( ad len filename -- )
+    1+ >r
+    bounds 0 &ff8 r>
+    10 OS_File ;
+
+: _getxy #out @ 0 ;
+
+: _getcolrow  60 0
+;
+
+: tone 2drop
+;
+
+: beep! 2drop
+;
+
+code digit     ( c base -- n f )
+  ldr r0, [ sp ]
+  sub s r0, r0, # 48
+  u>= if
+    cmp r0, # 10
+    b cc 1 $
+    cmp r0, # 17
+    u>= if
+      sub r0, r0, # 7
+1 $:  cmp r0, tos
+      u< if
+        str r0, [ sp ]
+        mvn tos, # 0
+        next
+      then
+    then
+  then
+  mov tos, # 0
+next c;
+
+code >number   ( ud ad len -- ud ad len )
+  teq tos, # 0
+  0<> if
+    ldmfd sp !, { r0, r1, r2 } \ ad hi lo
+    adr r3, base
+    ldr r3, [ r3 ]
+    begin
+      ldrb r4, [ r0 ], # 1
+      sub s r4, r4, # 48
+      b cc 1 $
+      cmp r4, # 9
+      > if
+        sub r4, r4, # 7
+        cmp r4, # 10
+        b cc 1 $
+      then
+      cmp r4, r3
+      b ge 1 $
+      mov r5, r2, lsl # 16
+      mov r5, r5, lsr # 16
+      mla r4, r5, r3, r4     \ lolo * base + digit
+      mov r2, r2, lsr # 16
+      mul r5, r2, r3         \ hilo * base
+      mul r2, r1, r3         \ hi   * base
+      add r5, r5, r4, lsr # 16
+      add r1, r2, r5, lsr # 16
+      mov r4, r4, lsl # 16
+      mov r4, r4, lsr # 16
+      add r2, r4, r5, lsl # 16
+      sub s tos, tos, # 1
+    0= until
+1 $: sub r0, r0, # 1
+    stmfd sp !, { r0, r1, r2 }
+  then
+next c;
+
+0 value double?
+-1 value dp-location
+
+: _number?
+    false to double?                \ initially not a double #
+    -1 to dp-location
+    over c@ [char] - = over and dup>r
+    if      1 /string
+    then    0 0 2swap >number
+    over c@ [char] . =               \ next char is a '.'
+    if      dup 1- to dp-location
+            1 /string >number
+            true to double?         \ mark as a double number
+    then    nip 0=
+    r>
+    if      >r dnegate r>
+    then    ;
+
+: ?missing    ( f -- )
+    abort" is undefined" ;
+
+: (number)    ( ad -- d )
+    count _number? 0= ?missing ;
+
+defer number    ' (number) is number
+
+: space
+    bl emit ;
+
+128 constant spcs-max
+
+create spcs &20202020
+dup ,-t dup ,-t dup ,-t dup ,-t dup ,-t dup ,-t dup ,-t dup ,-t
+dup ,-t dup ,-t dup ,-t dup ,-t dup ,-t dup ,-t dup ,-t dup ,-t
+dup ,-t dup ,-t dup ,-t dup ,-t dup ,-t dup ,-t dup ,-t dup ,-t
+dup ,-t dup ,-t dup ,-t dup ,-t dup ,-t dup ,-t dup ,-t     ,-t
+
+: spaces     ( n -- )
+    begin dup 0>
+    while dup spcs-max min spcs over type -
+    repeat drop ;
+
+: _gotoxy drop
+    #out @ - dup 0> if dup spaces then drop ;
+
+: hex       16 base ! ;
+: decimal   10 base ! ;
+: binary     2 base ! ;
+: octal      8 base ! ;
+
+code hold    ( c -- )
+  adr r0, hld
+  ldr r1, [ r0 ]
+  strb tos, [ r1, # -1 ]!
+  str r1, [ r0 ]
+  ldmfd sp !, { tos }
+next c;
+
+: <#
+    pad hld ! ;
+
+: #>
+    2drop hld @ pad over - ;
+
+: sign
+    0< if [char] - hold then ;
+
+: #            ( d -- d' )
+    base @ mu/mod rot 9 over <
+    if 7 + then [char] 0 + hold ;
+
+: #s           ( d -- 0 0 )
+    begin # 2dup or 0= until ;
+
+: (d.)         ( d -- ad len )
+    tuck dabs <# #s rot sign #> ;
+
+: d.           ( d -- )
+    (d.) type space ;
+
+: d.r          ( d len -- )
+    >r (d.) r> over - spaces type ;
+
+: .     s>d d. ;
+: .r    >r s>d r> d.r ;
+: u.    0 d. ;
+: u.r   0 swap d.r ;
+: h.    base @ swap hex u. base ! ;
+: ?     @ . ;
+
+code word     ( char -- ad )
+  adr r0, (source)
+  ldmfd r0, { r1, r4 }
+  adr r0, >in
+  ldr r3, [ r0 ]  \ r0= >in
+  add r2, r4, r3
+  sub s r1, r1, r3
+  mov le r1, # 0
+  > if
+    cmp tos, # 32
+    0= if
+      begin
+        ldrb r5, [ r2 ], # 1
+        cmp r5, tos
+      <= while
+        sub s r1, r1, # 1
+      0= until
+        mov r6, r2
+        mov r5, r6
+        b 1 $
+      then
+      sub r6, r2, # 1    \ r6= start of word
+      add tos, tos, # 1
+      begin
+        sub s r1, r1, # 1
+      0<> while
+        ldrb r5, [ r2 ], # 1
+        cmp r5, tos
+      u< until
+        sub s r5, r2, # 1    \ r5= end of word
+      then
+      mov eq r5, r2
+    else
+      begin
+        ldrb r5, [ r2 ], # 1
+        cmp r5, tos
+      0= while
+        sub s r1, r1, # 1
+      0= until
+        mov r6, r2
+        mov r5, r6
+        b 1 $
+      then
+      sub r6, r2, # 1    \ r6= start of word
+      begin
+        sub s r1, r1, # 1
+      0<> while
+        ldrb r5, [ r2 ], # 1
+        cmp r5, tos
+      0= until
+        sub s r5, r2, # 1    \ r5= end of word
+      then
+      mov eq r5, r2
+    then
+1 $:
+    sub r1, r2, r4       \ update >in
+    str r1, [ r0 ]
+    sub r1, r5, r6
+    cmp r1, # 255
+    mov gt r1, # 255
+  then
+  adr r0, pocket         \ r1= count
+  mov tos, r0
+  strb r1, [ r0 ], # 1
+  teq r1, # 0
+  0<> if
+    begin
+      ldrb r5, [ r6 ], # 1
+      strb r5, [ r0 ], # 1
+      sub s r1, r1, # 1
+    0= until
+  then
+  strb r1, [ r0 ]
+next c;
+
+code skip      ( ad len c -- ad' len' )
+  ldmfd sp !, { r0, r1 }
+  teq r0, # 0
+  0<> if
+    begin
+      ldrb r2, [ r1 ], # 1
+      cmp r2, tos
+      b ne 1 $
+      sub s r0, r0, # 1
+    0= until
+    add r1, r1, # 1
+1 $:
+    sub r1, r1, # 1
+  then
+  mov tos, r0
+  stmfd sp !, { r1 }
+next c;
+
+code scan      ( ad len c -- ad' len' )
+  ldmfd sp !, { r0, r1 }
+  teq r0, # 0
+  0<> if
+    begin
+      ldrb r2, [ r1 ], # 1
+      cmp r2, tos
+      b eq 1 $
+      sub s r0, r0, # 1
+    0= until
+    add r1, r1, # 1
+1 $:
+    sub r1, r1, # 1
+  then
+  mov tos, r0
+  stmfd sp !, { r1 }
+next c;
+
+code wskip c;
+code wscan c;
+
+code lskip      ( ad len c -- ad' len' )
+  ldmfd sp !, { r0, r1 }
+  teq r0, # 0
+  0<> if
+    begin
+      ldr r2, [ r1 ], # 1
+      cmp r2, tos
+      b ne 1 $
+      sub s r0, r0, # 1
+    0= until
+    add r1, r1, # 1
+1 $:
+    sub r1, r1, # 1
+  then
+  mov tos, r0
+  stmfd sp !, { r1 }
+next c;
+
+code lscan      ( ad len c -- ad' len' )
+  ldmfd sp !, { r0, r1 }
+  teq r0, # 0
+  0<> if
+    begin
+      ldr r2, [ r1 ], # 1
+      cmp r2, tos
+      b eq 1 $
+      sub s r0, r0, # 1
+    0= until
+    add r1, r1, # 1
+1 $:
+    sub r1, r1, # 1
+  then
+  mov tos, r0
+  stmfd sp !, { r1 }
+next c;
+
+code -skip      ( ad len c -- ad' len' )
+  ldmfd sp !, { r0, r1 }
+  teq r0, # 0
+  0<> if
+    begin
+      ldrb r2, [ r1 ], # -1
+      cmp r2, tos
+      b ne 1 $
+      sub s r0, r0, # 1
+    0= until
+    sub r1, r1, # 1
+1 $:
+    add r1, r1, # 1
+  then
+  mov tos, r0
+  stmfd sp !, { r1 }
+next c;
+
+code -scan      ( ad len c -- ad' len' )
+  ldmfd sp !, { r0, r1 }
+  teq r0, # 0
+  0<> if
+    begin
+      ldrb r2, [ r1 ], # -1
+      cmp r2, tos
+      b eq 1 $
+      sub s r0, r0, # 1
+    0= until
+    sub r1, r1, # 1
+1 $:
+    add r1, r1, # 1
+  then
+  mov tos, r0
+  stmfd sp !, { r1 }
+next c;
+
+code compare   ( ad1 len1 ad2 len2 -- -1 | 0 | 1 )
+  ldmfd sp !, { r1, r2, r3 }
+  cmp r2, tos
+    mov cc tos, r2
+  begin
+    ldrb r2, [ r1 ], # 1
+    ldrb r4, [ r3 ], # 1
+    cmp r2, r4
+    b ne 1 $
+    sub s tos, tos, # 1
+  0= until
+  next
+1 $:
+  mov lt tos, # 1
+  mvn gt tos, # 0
+next c;
+
+CODE SEARCH     ( ad1 len1 ad2 len2 -- ad3 len3 flag )
+  ldmfd sp !, { r0, r1, r2 }
+  sub sp, sp, # 8
+  teq tos, # 0
+  mvn eq tos, # 0
+  next eq
+1 $:
+    cmp r1, tos
+  b lt 2 $
+    mov r3, # 0
+3 $:
+    ldrb r4, [ r2, r3 ]
+    ldrb r5, [ r0, r3 ]
+    cmp r5, r4
+    add ne r2, r2, # 1
+    sub ne r1, r1, # 1
+  b ne 1 $
+    add r3, r3, # 1
+    cmp r3, tos
+  b ne 3 $
+    stmfd sp, { r1, r2 }
+    mvn tos, # 0
+  next
+2 $:
+  mov tos, # 0
+next c;
+
+: parse       ( char -- ad len )
+    >r source >in @ /string
+    2dup r> scan nip -
+    dup 1+ >in +! ;
+
+: .(
+    [char] ) parse type ; immediate
+
+: \
+    source >in ! drop ; immediate
+
+: >body
+    cell+ ;
+
+: body>
+    cell- ;
+
+: l>name
+    5 - ;
+
+: n>link
+    5 + ;
+
+: >name
+    9 - ;
+
+: name>
+    9 + ;
+
+: >view
+    8 - ;
+
+: view>
+    8 + ;
+
+  1 value    #threads
+512 constant maxthreads
+ 31 constant name-max-chars
+
+: vlink>voc     ( voc-link-field -- voc-address )
+    cell+ ;
+
+: voc>vlink     ( voc-address -- voc-link-field )
+    cell - ;
+
+: voc#threads   ( voc-address -- #threads )
+    2 cells - @ ;
+
+: vcfa>voc      ( vocabulary-cfa -- voc-address )
+    >body 2 cells+ ;
+
+: voc>vcfa      ( voc-address -- vocabulary-cfa )
+    2 cells - body> ;
+
+
+code "#hash     ( a1 n1 #threads -- n2 )
+  ldmfd sp !, { r0, r1 }
+  mov r3, # 0
+  begin
+    ldrb r2, [ r1 ], # 1
+    eor r3, r2, r3, lsl # 1
+    sub s r0, r0, # 1
+  0= until
+  sub tos, tos, # 1
+  and tos, tos, r3
+  mov tos, tos, lsl # 2
+next c;
+
+code nfa-count        ( ad -- ad' len )
+  ldrb r0, [ tos ]
+  and r0, r0, # 63
+  sub tos, tos, r0
+  stmfd sp !, { tos }
+  mov tos, r0
+next c;
+
+code search-1wordlist ( ad len wid -- 0 | cfa f )
+  ldmfd sp !, { r0, r1 }
+  teq r0, # 0
+  mov eq tos, # 0
+  begin
+    begin
+      ldr ne tos, [ tos ]
+      teq ne tos, # 0
+      next eq
+      ldrb r3, [ tos, # -5 ]
+      and r3, r3, # 31
+      cmp r3, r0
+    0= until
+    sub r2, tos, # 5
+    sub r2, r2, r3
+    begin
+      sub s r3, r3, # 1
+    u>= while
+      ldrb r4, [ r2, r3 ]
+      ldrb r5, [ r1, r3 ]
+      cmp r4, r5
+    0<> until                  2swap
+  again
+    then
+  add r2, tos, # 4
+  stmfd sp !, { r2 }
+  ldrb r3, [ tos, # -5 ]
+  and s r3, r3, # &80
+  mov ne tos, # 1
+  mvn eq tos, # 0
+next c;
+
+: search-wordlist      ( addr len wid -- 0 | cfa flag )
+    >r 2dup r@ voc#threads "#hash r> + search-1wordlist ;
+
+: (find)       ( string -- string FALSE | cfa flag )
+    dup c@ 0= if 0 exit then
+    context
+    begin   dup @                   \ while not at end of list
+    while   dup 2@ <>               \ and not the same vocabulary
+                                    \ as NEXT time
+      if over count name-max-chars min
+        2 pick @ search-wordlist ?dup
+        if      2swap 2drop EXIT then    \ found it, so we're done searching
+      then  cell+                   \ step to next vocabulary
+    repeat  drop
+    FALSE  ;
+
+defer find        ' (find) is find
+
+: defined
+    bl word ?uppercase find ;
+
+: immediate
+    last @ 128 toggle ;
+
+: hide
+    last @ n>link @
+    current @
+    last @ nfa-count
+    current @ 2 cells- @
+    "#hash + ! ;
+
+: reveal
+    last @ n>link
+    current @
+    last @ nfa-count
+    current @ 2 cells- @
+    "#hash + !
+    synccode ;
+
+: literal
+    compile lit , ; immediate
+
+: char
+    bl word 1+ c@ ;
+
+: [char]
+    char [compile] literal ; immediate
+
+: '
+    defined 0= ?missing ;
+
+: [']
+    ' [compile] literal ; immediate
+
+: [compile]
+    ' compile, ; immediate
+
+: postpone
+    defined dup 0= ?missing
+    0< if compile compile then
+    compile, ; immediate
+
+defer \n->crlf     ' 2drop is \n->crlf
+
+: ,"
+    [char] " parse here align >r dup c,
+    dup allot r@ 1+ swap move 0 c, align r> count \n->crlf ;
+
+
+: ,'
+    [char] ' parse here align >r dup c,
+    dup allot r@ 1+ swap move 0 c, align r> count \n->crlf ;
+
+code (("))        ( -- c-string )
+  stmfd sp !, { tos }
+  ldmfd rp !, { tos }
+  mov r0, tos
+  ldrb r1, [ r0 ], # 5
+  add r0, r1, r0
+  bic r0, r0, # 3
+  stmfd rp !, { r0 }
+next c;
+
+: (c")
+    ((")) ;
+
+: c"
+    compile (c") ," ; immediate
+
+: (s")
+    ((")) count ;
+
+: s"
+        state @
+        if      compile (s")  ,"
+        else    [char] " word
+                temp$ over c@ 1+ move
+                temp$ count
+        then ; immediate
+
+: (.")
+    ((")) count type ;
+
+: ."
+    compile (.") ," ; immediate
+
+: catch       ( cfa -- flag )
+    sp@ >r
+    lp @ >r
+    handler @ >r
+    rp@ handler !
+    execute
+    r> handler !
+    r> r> 2drop 0 ;
+
+: throw        ( n -- )
+    ?dup
+    if handler @ rp!
+      r> handler !
+      r> lp !
+      r> swap >r sp! drop
+      r>
+    then ;
+
+: abort
+    -1 throw ;
+
+: (abort")
+    ((")) swap
+    if msg !
+      -2 throw
+    then drop ;
+
+: abort"
+    compile (abort") ," ; immediate
+
+: ?exec
+    state @ abort" execution only" ;
+
+: ?comp
+    state @ 0= abort" compilation only" ;
+
+: ?pairs
+    xor abort" conditionals not paired" ;
+
+: >mark
+    here 0 , ;
+
+: >resolve
+    here swap ! ;
+
+: <mark
+    here ;
+
+: <resolve
+    , ;
+
+: ahead
+    >mark 2 ; immediate
+
+: if
+    ?comp compile ?branch >mark 2 ; immediate
+
+: else
+    ?comp 2 ?pairs compile branch >mark
+    swap >resolve 2 ; immediate
+
+: then
+    ?comp 2 ?pairs compile _then >resolve ; immediate
+
+: endif
+    ?comp 2 ?pairs >resolve ; immediate
+
+: begin
+    compile _begin
+    ?comp <mark 1 ; immediate
+
+: until
+    ?comp 1 ?pairs
+    compile _until <resolve ; immediate
+
+: again
+    ?comp 1 ?pairs
+    compile _again <resolve ; immediate
+
+: while
+    ?comp
+    compile _while >mark 2
+    2swap ; immediate
+
+: repeat
+    ?comp
+    1 ?pairs
+    compile _repeat <resolve
+    2 ?pairs >resolve ; immediate
+
+: do
+    ?comp
+    compile (do) >mark 3 ; immediate
+
+: ?do
+    ?comp
+    compile (?do) >mark 3 ; immediate
+
+: loop
+    ?comp
+    3 ?pairs
+    compile (loop) dup cell+ <resolve
+    >resolve ; immediate
+
+: +loop
+    ?comp
+    3 ?pairs
+    compile (+loop) dup cell+ <resolve
+    >resolve ; immediate
+
+: case
+    compile _case
+    ?comp 0 ; immediate
+
+: of
+    ?comp
+    compile _of >mark 4 ; immediate
+
+: endof
+    ?comp
+    4 ?pairs
+    compile _endof >mark
+    swap >resolve 5 ; immediate
+
+: endcase
+    ?comp
+    compile _endcase
+    begin ?dup
+    while 5 ?pairs >resolve
+    repeat ; immediate
+
+: link,
+    align here over @ , swap ! ;
+
+: call! ( to from -- )
+    dup>r ad>of &eb000000 or r> ! ;
+
+: call,
+    here cell allot call! ;
+
+variable loadline
+variable ?loading
+
+: "name,        ( a1 n1 -- )    \ align and compile name a1,n1 at here
+    name-max-chars min align
+    dup 0= abort" Need a NAME to create!"
+    2>r
+    caps @
+    if      2r@ upper
+    then    3 2r@ nip 3 and - allot \ pre-align for name length
+    2r@ current @ search-wordlist
+    if      warning @
+            if      cr ?loading @
+                    if      ." From file: " cur-file count type
+                            ."  word: "
+                    then    2r@ type ."  isn't unique "
+            then    drop
+    then    2r> >r here r@ move r@ allot here last ! r> c, ;
+
+: view,         ( -- )          \ compile the view field
+    ?loading @
+    if      loadline @ ,  else    -1 ,  then    ;
+
+: _"header      ( a1 n1 -- )    \ build a hashed header from a1,n1
+    name-max-chars min 2dup 2>r "name, view,
+    current @ dup  2r> rot voc#threads "#hash + link, ;
+
+defer "header   ' _"header is "header
+
+: memory-total
+    [ memtotal ] literal @ ;
+
+: ?memchk       ( n1 -- )       \ test to see if we have enough memory
+    here +  memory-total ibfull - 512 -  U> abort" Out of memory!" ;
+
+: _header       ( -<name>- )    \ build a header, but check available memory
+    2000 ?memchk
+    bl word count "header ;
+
+defer header        ' _header is header
+
+: create
+    header dovar call, ;
+
+variable csp
+
+: !csp
+    sp@ csp ! ;
+
+: ?csp
+    sp@ csp @ xor abort" stack changed" ;
+
+: (;code)
+    r> last @ name> call! ;
+
+
+: does>         ( -- )
+    compile (;code)
+    &e3ce03ff , \ bic r0, link, # &fc000003
+    dodoes here ad>of
+    &eb000000 or , synccode ; immediate
+
+: ]
+    state on ;
+
+: [
+    state off ; immediate
+
+: _:
+    header hide !csp docol call, ] ;
+
+: :noname
+    align here !csp docol call, ] ;
+
+defer :           ' _: is :
+
+: ;
+    ?comp ?csp
+    reveal compile unnest [compile] [ ; immediate
+
+: recurse
+    ?comp last @ name> compile, ; immediate
+
+: constant
+    header docon call, , ;
+
+: variable
+    create 0 , ;
+
+: defer
+    header &e51ff004 , compile noop
+    here defer-list @ , defer-list ! compile noop ;
+
+: definitions
+    context @ current ! ;
+
+defer boot  ' noop is boot
+
+: 2constant
+    create , , ;code also assembler
+    bic link, link, # &fc000003
+    ldmfd link, { r0, r1 }
+    stmfd sp !, { r1, tos }
+    mov tos, r0
+    next c; previous drop
+
+: 2variable
+    variable 0 , ;
+
+code @(ip)
+  stmfd sp !, { tos }
+  ldr r0, [ rp ]
+  ldr tos, [ r0 ], # 4
+  str r0, [ rp ]
+next c;
+
+code >is
+  add tos, tos, # 4
+next c;
+
+: (is)
+    @(ip) >is ! ;
+
+: is
+    state @
+    if compile (is) ' compile,
+    else ' >is !
+    then ; immediate
+
+: value
+    header
+    dovalue call,  ,  dovalue! call,  dovalue+! call, ;
+
+: to
+    ' cell+ cell+
+    state @
+    if , exit
+    then execute ; immediate
+
+: +to
+    ' cell+ cell+ cell+
+    state @
+    if , exit
+    then execute ; immediate
+
+: &of
+    ' cell+
+    state @
+    if compile lit , then ; immediate
+
+: query
+    0 to source-id tib dup 256 accept
+    (source) 2!
+    >in off ;
+
+: ?stack
+    depth 0< abort" stack underflow" ;
+
+: _number,
+    double? 0=
+    if drop then
+    state @
+    if double? 0=
+      if [compile] literal
+      else swap [compile] literal [compile] literal
+      then
+    then ;
+
+defer number,
+' _number, is number,
+
+defer cursor-off
+ ' noop is  cursor-off
+
+defer cursor-on
+ ' noop is  cursor-on
+
+: _interpret
+    cursor-off
+    begin
+      bl word dup c@
+    while
+      ?uppercase find ?dup
+      if state @ =
+        if compile,  else execute ?stack synccode then
+      else number number,
+      then
+    repeat drop ;
+
+defer interpret
+' _interpret is interpret
+
+: evaluate
+    source 2>r >in @ >r source-id >r
+    (source) 2! >in off
+    -1 to source-id
+    interpret
+    r> to source-id
+    r> >in ! 2r> (source) 2! ;
+
+: wait
+    key 27 =
+    if ." ok" abort cursor-on then ;
+
+: start/stop
+    key? if wait wait then ;
+
+: refill
+    source-id ?dup
+    if 1+
+      if 1 loadline +!
+        tib dup 260
+        source-id read-line abort" read error"
+        if (source) 2! >in off true exit then
+        2drop
+      then false exit
+    then cr query true ;
+
+: linkfile
+    ?loading @
+    if loadfile link,
+      count here place
+      here c@ 2 + aligned allot
+    else drop
+    then ;
+
+variable echo
+defer stack-check    ' noop is stack-check
+variable start-line
+
+: >line
+    1- 0max ?dup
+    if 0 do refill drop loop
+    then ;
+
+: (fload)
+    start-line @ >line start-line off
+    begin refill
+    while echo @
+      if cr source type start/stop then
+      interpret stack-check
+    repeat ;
+
+create openbuf 260 allot
+
+: _"open
+    2dup 2>r openbuf place
+    openbuf count r/o open-file dup 0=
+    ?loading @ 0= or
+    if 2r@ cur-file place then
+    2r> pocket place ;
+
+defer "open      ' _"open is "open
+
+: $open
+    count "open ;
+
+code file-position ( fileid -- ud ior )
+  mov r0, # 0
+  mov r1, tos
+  swi x " OS_Args"
+  mov vc tos, # 0
+  mvn vs tos, # 0
+  stmfd sp !, { r0, r2 }
+next c;
+
+code reposition-file ( ud fileid -- ior )
+  mov r1, tos
+  ldmfd sp !, { r0, r2 }
+  mov r0, # 1
+  swi x " OS_Args"
+  mov vc tos, # 0
+  mvn vs tos, # 0
+next c;
+
+code file-size ( fileid -- ud ior )
+  mov r0, # 2
+  mov r1, tos
+  swi x " OS_Args"
+  mov vc tos, # 0
+  mvn vs tos, # 0
+  mov r0, # 0
+  stmfd sp !, { r0, r2 }
+next c;
+
+code resize-file ( ud fileid -- ior )
+  mov r1, tos
+  ldmfd sp !, { r0, r2 }
+  mov r0, # 3
+  swi x " OS_Args"
+  mov vc tos, # 0
+  mvn vs tos, # 0
+next c;
+
+: include-file
+    loadfile @ cell+ >r                 ?loading @ >r
+    loadline @ >r                       >in @ >r
+    source-id dup>r swap                to source-id
+    source 2>r                          filebuf 0 (source) 2!
+    ?loading on                         pocket ?uppercase linkfile
+    loadline off
+    dup 0>
+    if dup file-position 2drop inlength -
+      0 rot reposition-file drop
+    else drop
+    then
+    ibfull to iblen  0 to inlength
+    ['] (fload) catch
+    source-id close-file drop
+    ibfull to iblen  0 to inlength
+    2r> (source) 2!                     r> to source-id
+    throw
+    r> >in !                            r> loadline !
+    r> ?loading !                       align
+    r> linkfile
+    ?loading @
+    if loadfile @ cell+
+      count 255 min cur-file place
+      source nip >in !
+    then ;
+
+: included
+    "open abort" file not found"
+    include-file ;
+
+: fload
+    bl word count included ;
+
+: include
+    bl word count included ;
+
+: ok
+    cur-file count included ;
+
+: ((
+    begin bl word dup @ &ffffff and
+      &292902 <>
+    while c@ 0=
+      if refill 0= abort" missing ))" then
+    repeat drop ; immediate
+
+: \s
+    2r> 2drop [compile] \ ; immediate
+
+defer edit-error  ' noop is edit-error
+
+: _reset-stacks
+    sp0 @ sp! ;
+
+defer reset-stacks  ' _reset-stacks is reset-stacks
+
+: _message
+    base @ >r decimal cr ." Error: "
+    pocket count type space
+    dup -2 =
+    if drop msg @ count type
+    else ." Error #" .
+    then ?loading @
+    if cr ." File: " loadfile @ cell+ count type
+      ."  at line: " loadline ?
+      edit-error
+    then r> base ! ;
+
+defer message       ' _message is message
+
+variable .smax      8 .smax !-t
+
+: .s
+    ?stack depth .smax @ min dup
+    if ." [" depth 1- 1 .r ." ] "
+      begin dup pick 1 .r base @ 16 =
+        if ." h" then
+        space 1- dup 0=
+      until
+    else ."  empty "
+    then drop ;
+
+: query-interpret
+    query space interpret ;
+
+: quit  ( -- )
+    rp0 @ rp!
+    begin   [compile] [
+      ?loading off
+      begin   cr ['] query-interpret catch  ?dup 0=
+      while   state @ 0=
+        if      ."  ok"  depth .smax @ min 0
+          ?do  [char] . emit loop
+        then  cursor-on
+      repeat
+      dup 1+  ( no message on abort )
+      if  console message  then
+      reset-stacks
+      cursor-on
+    again ;
+
+
+: docmdtail
+    [ commline ] literal @
+    255 bl scan 2dup 0 scan nip - drop drop  ;
+
+
+defer commandline    ' docmdtail is commandline
+
+
+: cold
+    ['] boot catch 0=
+    if ['] commandline catch ?dup
+      if dup 1+
+        if message then
+        sp0 @ sp!
+      then quit
+    then bye ;
+
+code largest    ( a1 n1 --- a2 n2 )
+  ldr r0, [ sp ]
+  mov r1, # 0
+  mov r2, r0
+  begin
+    ldr r3, [ r0 ], # 4
+    cmp r3, r1
+      sub hi r2, r0, # 4
+      mov hi r1, r3
+    sub s tos, tos, # 1
+  u<= until
+  str r2, [ sp ]
+  mov tos, r1
+next c;
+
+\ : dump          ( ad len -- )
+\     base @ >r hex
+\     0 do   cr dup 6 .r space  16 0 do   dup c@ 3 .r 1+   loop
+\     16 +loop   drop  r> base ! ;
+
+code op@
+  stmfd sp !, { tos }
+  mov tos, op
+next c;
+
+code op!
+  mov op, tos
+  ldmfd sp !, { tos }
+next c;
+
+code +ov? ( n1 n2 -- f )
+  ldmfd sp !, { r0 }
+  add s r0, r0, tos
+  mov tos, # 0
+  sub vs tos, tos, # 1
+next c;
+
+code Wimp_CreateMenu
+  mov r1, tos
+  ldmfd sp !, { r2, r3, tos }
+  swi " Wimp_CreateMenu"
+next c;
+
+code Wimp_SlotSize ( next cur -- free next cur )
+  mov r0, tos
+  ldmfd sp !, { r1 }
+  swi " Wimp_SlotSize"
+  stmfd sp !, { r1, r2 }
+  mov tos, r0
+next c;
+
+code OS_Heap ( misc ^blk ^heap reason -- r3 r2 f )
+  mov r0, tos
+  ldmfd sp !, { r1, r2, r3 }
+  swi x " OS_Heap"
+  mvn vs tos, # 0
+  mov vc tos, # 0
+  stmfd sp !, { r2, r3 }
+next c;
+
+code vsync
+  mov r0, # 19
+  swi " OS_Byte"
+next c;
+
+0 local l0
+1 local l1
+2 local l2
+3 local l3
+4 local l4
+5 local l5
+6 local l6
+7 local l7
+
+: .id ( nfa -- )
+    nfa-count type space ;
+
+init-assembler
+here &8000 ad>of &ea000000 or coldstart !-t
+  swi " OS_GetEnv"
+  adr r2, memtotal
+  str r1, [ r2 ]
+  adr r2, commline
+  str r0, [ r2 ]
+  adr r0, filebuff
+  ldr r2, [ r0 ]
+  adr r0, ' ibfull >body-t
+  str r2, [ r0 ]
+  sub rp, r1, r2                \ rp=RAM limit
+  adr r0, ' inbuf >body-t
+  str rp, [ r0 ]
+  adr r0, rp0
+  str rp, [ r0 ]
+  adr r2, retstack
+  ldr r2, [ r2 ]
+  sub sp, rp, r2
+  adr r0, sp0
+  str sp, [ r0 ]
+  add sp, sp, # 4
+  mov tos, # 0
+  mov r0, # 10                  \ set base to decimal
+  adr r1, base
+  str r0, [ r1 ]
+  b ' cold a;                   \ goto cold colon definition
+
+2048 retstack !-t
+2048 datstack !-t
+16384 filebuff !-t
+
+26 value kbuild
+
+
+dovoc  resolves <vocabulary>
+' scan resolves scan

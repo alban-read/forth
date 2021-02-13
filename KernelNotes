@@ -1,0 +1,29 @@
+
+## Split Kernel into 26 and 32 bit versions.
+
+Discussed some 26Bit looking code on ROOL forum.
+
+### Tried making the kernel 32 bit clean just ended up splitting it.
+
+Making the kernel clean was discussed on ROOL forum.
+
+This involved adding test instructions to a number of words; I tested a 32 bit clean kernel - it was consistently measurably slower.
+
+Although I am interested in running RISCOS 5.28 and above on modern ARM processors; I dont want to prevent earlier systems from also working.
+
+Presently I have split the kernel for 26 bit and 32 bit kernels.
+
+There is no significant performance difference between these two kernels.
+Both kernels work on the 32bit systems that I have tested.
+Only the 26bit kernel would work on a 26 bit operating system.
+
+The change impacts the entire system; since the code is in every word executed; every variable and constant looked up etc.
+
+I wondered if using fewer less complex instructions would speed things up for 32 bit systems; comparing the two kernels; the modern ARM processor doesnt care very much if we use a bic or a mov.
+
+The only measurably slower scenario was the 32bit clean kernel which adds test instructions.
+
+I imagine there may be potential scenarios where masking parts out of the available address space could cause issues - in practice forth code is not likely to use more than a few megabytes of space.
+
+If anyone writes a FORTH app with 32MB of code; I will be very impressed; and very large data structures can still be created in memory allocated from the heap.
+

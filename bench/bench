@@ -1,9 +1,9 @@
 fload bench.fib
 fload bench.sieve
 fload bench.matrix
-cr .( running Fib ten times.)
+cr .( running Fib 25 times.)
 run-fib
-cr .( running Sieve ten times.)
+cr .( running Sieve 25  times.)
 run-sieve
-cr .( running Matrix ten times.)
+cr .( running Matrix 25 times.)
 run-matrix

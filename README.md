@@ -91,14 +91,34 @@ The forth interpreter NEXT is only one instuction on the ARM 32.
 
 ### In Reverse order - newest first.
 
+Split Kernel into 26 and 32 bit versions.
+
+Discussed some 26Bit looking code on ROOL forum.
+
+Tried making the kernel 32 bit clean; this involved adding test instructions to a number of words; I tested a 32 bit clean kernel - it was consistently measurably slower.
+
+Although I am interested in running RISCOS 5.28 and above on modern ARM processors; I dont want to prevent earlier systems from also working.
+
+Presently I have split the kernel for 26 bit and 32 bit.
+There is no significant performance difference between these two kernels.
+Both kernels work on the 32bit systems that I have tested.
+Only the 26bit kernel would work on a 26 bit operating system.
+
+I imagine there may be potential scenarios where chopping parts out of the address space could cause issues on a 4GB 32 bit system; but in practice forth code is not likely to use much more than a few megabytes of space starting at 32K.
+
 Added editor support to invoke stronged on a file or word.
+
 
 Added some benchmarks to benchmark the interpreter.
 These incidentally confirm that the A72 in the overclocked PI 400 is fast.
 
+
 Added a build script (makerpcemu) for users of RPCEmu.
 
+
 Fixed an issue with the ErrorBox test routine, that could crash the app.
+
+
 
 Made a cache sync change that speeds up compilation of files; recall that FORTH compiles code into its dictionary.  
 This means the ARM code cache needs to be synced with the ARM data cache.
@@ -107,10 +127,13 @@ So the update region is now set to the 8K below the dictionary pointer.
 Speed increase for fload meta on PI400 is massive going from 00.06.090 to 00.00.07 (from six seconds to essentially instant.)
 For RPC EMU which emulates a RISC PC (on a PC or MAC) commenting out syncCode completely is an option.
 
+
+
 Added hardware division (sdiv and udiv) instructions to the assembler (PASM); added s/ and u/ words to use these new instructions.
 These instructions are not available on older ARM systems; all the older subtract and shift division words remain untouched.
 s/ is 4-5 times faster than /.
 These are illegal instructions and will certainly crash on older hardware including RPCEmu.
+
 
 
 Added orange coloured cursor to the edit window, handle caret events, avoid drawing on other peoples windows, fixed bug that sometimes stopped the icon from displaying in the icon bar.

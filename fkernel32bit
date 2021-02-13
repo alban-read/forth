@@ -1,8 +1,8 @@
 \
-\ ANS Forth kernel for ARM 3 machines  Martin Läuter
+\ ANS Forth kernel for ARM 3 machines  Martin Läuter  32bit Mode
 \
 \ modified for strongarm 2007 Alban Read
-\ - works on RPCEmu, Iyonix, TI, misc PI and PI400.
+\ - works on RPCEmu, Iyonix, TI, misc PI and PI400 in 32bit mode.
 \
 
 decimal
@@ -24,12 +24,11 @@ forth definitions meta
 
 label dovar
   stmfd sp !, { tos }
-  bic tos, link, # &fc000003
+  mov tos, link
   next c; meta
 
 label docon
   stmfd sp !, { tos }
-  bic link, link, # &fc000003
   ldr tos, [ link ]
   next c;
 
@@ -38,30 +37,27 @@ assembler docon meta constant docon
 
 labcreate docol
   stmfd rp !, { ip }
-  bic ip, link, # &fc000003
+  mov ip, link
 next c;
 
 labcreate dodoes
   stmfd sp !, { tos }
   mov tos, r0
   stmfd rp !, { ip }
-  bic ip, link, # &fc000003
+  mov ip, link
 next c;
 
 labcreate dovalue
   stmfd sp !, { tos }
-  bic link, link, # &fc000003
   ldr tos, [ link ]
 next c;
 
 labcreate dovalue!
-  bic link, link, # &fc000003
   str tos, [ link, # -8 ]
   ldmfd sp !, { tos }
 next c;
 
 labcreate dovalue+!
-  bic link, link, # &fc000003
   ldr r0, [ link, # -12 ]
   add r0, tos, r0
   str r0, [ link, # -12 ]
@@ -70,7 +66,6 @@ next c;
 
 labcreate do2value
   stmfd sp !, { tos }
-  bic link, link, # &fc000003
   ldr tos, [ link ]
   ldmfd tos, { tos, link }
   stmfd sp !, { link }
@@ -80,14 +75,12 @@ variable lp
 
 labcreate dolocal
   stmfd sp !, { tos }
-  bic link, link, # &fc000003
   ldr tos, [ link ]
   ldr r0, lp
   ldr tos, [ r0, tos ]
 next c;
 
 labcreate dolocal!
-  bic link, link, # &fc000003
   ldr r0, [ link, # -8 ]
   ldr r1, lp
   str tos, [ r1, r0 ]
@@ -95,7 +88,6 @@ labcreate dolocal!
 next c;
 
 labcreate dolocal+!
-  bic link, link, # &fc000003
   ldr r0, [ link, # -12 ]
   ldr r1, lp
   ldr r0, [ r1, r0 ]!
@@ -108,7 +100,7 @@ labcreate docolp
   ldr r0, lp
   stmfd rp !, { r0, ip }
   str rp, lp
-  bic ip, link, # &fc000003
+  mov ip, link
   ldr r0, [ ip ], # 4
   and r1, r0, # &ff
   sub rp, rp, r1, lsl # 2
@@ -400,7 +392,7 @@ labcreate m0cfa
   ldr r0, lp
   stmfd rp !, { r0, op, ip }
   str rp, lp
-  bic ip, link, # &fc000003
+  mov ip, link
   mov op, tos
   ldmfd sp !, { tos }
   ldr r0, [ ip, # 4 ]!
@@ -423,7 +415,7 @@ labcreate m1cfa
   stmfd rp !, { r0, op, ip }
   add op, r1, op
   str rp, lp
-  bic ip, link, # &fc000003
+  mov ip, link
   ldr r0, [ ip ], # 4
   and r1, r0, # &ff
   sub rp, rp, r1, lsl # 2
@@ -456,21 +448,18 @@ next c;
 
 labcreate (iv@)
   stmfd sp !, { tos }
-  bic r0, link, # &fc000003
-  ldr r0, [ r0 ]
+  ldr r0, [ link ]
   ldr tos, [ r0, op ]
 next c;
 
 labcreate (iv!)
-  bic r0, link, # &fc000003
-  ldr r0, [ r0, # -8 ]
+  ldr r0, [ link, # -8 ]
   str tos, [ r0, op ]
   ldmfd sp !, { tos }
 next c;
 
 labcreate (iv+!)
-  bic r0, link, # &fc000003
-  ldr r0, [ r0, # -12 ]
+  ldr r0, [ link, # -12 ]
   ldr r1, [ r0, op ]
   add tos, tos, r1
   str tos, [ r0, op ]
@@ -478,23 +467,20 @@ labcreate (iv+!)
 next c;
 
 labcreate (iv[]@)
-  bic r0, link, # &fc000003
-  ldr r0, [ r0 ]
+  ldr r0, [ link ]
   add r0, r0, op
   ldr tos, [ r0, tos, lsl # 2 ]
 next c;
 
 labcreate (iv[]!)
-  bic r0, link, # &fc000003
-  ldr r0, [ r0, # -8 ]
+  ldr r0, [ link, # -8 ]
   add r0, r0, tos, lsl # 2
   ldmfd sp !, { r1, tos }
   str r1, [ r0, op ]
 next c;
 
 labcreate (iv[]+!)
-  bic r0, link, # &fc000003
-  ldr r0, [ r0, # -12 ]
+  ldr r0, [ link, # -12 ]
   add r0, r0, tos, lsl # 2
   ldmfd sp !, { r2, tos }
   ldr r1, [ r0, op ]!
@@ -504,8 +490,7 @@ next c;
 
 labcreate doobj
   stmfd sp !, { tos }
-  bic tos, link, # &fc000003
-  add tos, tos, # 4
+  add tos, link, # 4
 next c;
 
 code ((findm))
@@ -576,6 +561,7 @@ code swap      ( n1 n2 -- n2 n1 )
   str tos, [ sp ]
   mov tos, r0
 next c;
+
 
 code over      ( n1 n2 -- n1 n2 n1 )
   stmfd sp !, { tos }
@@ -811,7 +797,12 @@ code w+!       ( n ad -- )
   strb r2, [ r1, # 1 ]
 next c;
 
-4 constant cell
+\ 4 constant cell
+
+code cell
+  stmfd sp !, { tos }
+  mov tos, # 4
+next c;
 
 code cells     ( n1 -- n2 )
   mov tos, tos, lsl # 2
@@ -882,7 +873,12 @@ code fill      ( ad cnt c -- )
   0= until
 next c;
 
-32 constant bl
+\ 32 constant bl
+
+code bl
+  stmfd sp !, { tos }
+  mov tos, # 32
+next c;
 
 : erase        ( ad cnt -- )
     0 fill ;
@@ -890,7 +886,7 @@ next c;
 : blank        ( ad cnt -- )
     bl fill ;
 
- \ moves block of memory beginning at from !!! traditional !!!
+\ moves block of memory beginning at from !!! traditional !!!
 code cmove     ( from to count -- )
   mov s r3, tos
   ldmfd sp !, { r0, r1, tos } \ count, to from
@@ -950,6 +946,8 @@ next c;
 -1 constant true
  0 constant false
 
+
+
 code incr      ( ad -- )
   ldr r0, [ tos ]
   add r0, r0, # 1
@@ -1003,19 +1001,117 @@ code abs       ( n1 -- n2 )
   adc tos, tos, # 0
 next c;
 
-0 constant 0
-1 constant 1
+code 0
+ stmfd sp !, { tos }
+ eor tos, tos, tos
+next c;
+
+code 1
+ stmfd sp !, { tos }
+ mov tos, # 1
+next c;
+
+code 2
+ stmfd sp !, { tos }
+ mov tos, # 2
+next c;
+
+code 4
+ stmfd sp !, { tos }
+ mov tos, # 4
+next c;
+
+
+code 8
+ stmfd sp !, { tos }
+ mov tos, # 8
+next c;
+
+
+code 16
+ stmfd sp !, { tos }
+ mov tos, # 16
+next c;
+
+code 32
+ stmfd sp !, { tos }
+ mov tos, # 32
+next c;
+
+code 260
+ stmfd sp !, { tos }
+ mov tos, # 260
+next c;
+
+
+
+\ 0 constant 0
+\ 1 constant 1
 
 code 2*        ( n1 -- n2 )
   mov tos, tos, lsl # 1
 next c;
 
+code 4*        ( n1 -- n2 )
+  mov tos, tos, lsl # 2
+next c;
+
+code 8*        ( n1 -- n2 )
+  mov tos, tos, lsl # 3
+next c;
+
+code 16*        ( n1 -- n2 )
+  mov tos, tos, lsl # 4
+next c;
+
+code 32*        ( n1 -- n2 )
+  mov tos, tos, lsl # 5
+next c;
+
+code -32* ( n -- n' )
+  mov tos, tos, lsl # 5
+  rsb tos, tos, # 0
+next c;
+
+
 code 2/        ( n1 -- n2 )
   mov tos, tos, asr # 1
 next c;
 
+code 4/        ( n1 -- n2 )
+  mov tos, tos, asr # 2
+next c;
+
+code 8/        ( n1 -- n2 )
+  mov tos, tos, asr # 3
+next c;
+
+code 16/        ( n1 -- n2 )
+  mov tos, tos, asr # 4
+next c;
+
+code 32/        ( n1 -- n2 )
+  mov tos, tos, asr # 5
+next c;
+
 code u2/       ( n1 -- n2 )
   mov tos, tos, lsr # 1
+next c;
+
+code u4/       ( n1 -- n2 )
+  mov tos, tos, lsr # 2
+next c;
+
+code u8/       ( n1 -- n2 )
+  mov tos, tos, lsr # 3
+next c;
+
+code u16/       ( n1 -- n2 )
+  mov tos, tos, lsr # 4
+next c;
+
+code u32/       ( n1 -- n2 )
+  mov tos, tos, lsr # 5
 next c;
 
 code 10*      ( n1 -- n2 )
@@ -1031,6 +1127,26 @@ next c;
 
 code 1+        ( n1 -- n2 )
   add tos, tos, # 1
+next c;
+
+code 2+        ( n1 -- n2 )
+  add tos, tos, # 2
+next c;
+
+code 4+        ( n1 -- n2 )
+  add tos, tos, # 4
+next c;
+
+code 8+        ( n1 -- n2 )
+  add tos, tos, # 8
+next c;
+
+code 16+        ( n1 -- n2 )
+  add tos, tos, # 16
+next c;
+
+code 32+        ( n1 -- n2 )
+  add tos, tos, # 32
 next c;
 
 code 1-        ( n1 -- n2 )
@@ -1298,6 +1414,14 @@ code m*        ( n1 n2 -- d )
   stmfd sp !, { r3 }
 next c;
 
+\ 1 2 3 * +
+code *+ ( n1 n2 n3 -- n4  )
+ mov r0, tos
+ ldmfd sp !, { r1, r2 }
+ mla tos, r0, r1, r2
+next c;
+
+
 code *         ( n1 n2 -- n3 )
   ldmfd sp !, { r0 }
   mul tos, r0, tos
@@ -1528,7 +1652,6 @@ code source
 next c;
 
 labcreate dovoc
-  bic link, link, # &fc000003
   add link, link, # 8
   str link, context
 next c;
@@ -2747,7 +2870,7 @@ variable csp
 
 : does>         ( -- )
     compile (;code)
-    &e3ce03ff , \ bic r0, link, # &fc000003
+    &E1A0000E ,
     dodoes here ad>of
     &eb000000 or , synccode ; immediate
 
@@ -2789,7 +2912,6 @@ defer boot  ' noop is boot
 
 : 2constant
     create , , ;code also assembler
-    bic link, link, # &fc000003
     ldmfd link, { r0, r1 }
     stmfd sp !, { r1, tos }
     mov tos, r0
@@ -3212,6 +3334,8 @@ here &8000 ad>of &ea000000 or coldstart !-t
 2048 datstack !-t
 16384 filebuff !-t
 
+
+32 value kbuild
 
 dovoc  resolves <vocabulary>
 ' scan resolves scan

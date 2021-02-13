@@ -12,7 +12,7 @@ cr .( Loading Fib benchmark...)
 
 : run-fib
   time-reset
-  10 0 do
+  25 0 do
    34 fib drop ." ."
   loop
   cr ." Fib " .elapsed cr ;

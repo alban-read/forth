@@ -817,11 +817,14 @@ previous
 0 value TaskHndl
 variable pausecfa
 
+
 : .platform
     ." RISC OS " base @ >r decimal
-    OSVer 0 <# # # ascii . hold # #> type space r> base ! ;
+    OSVer 0 <# # # ascii . hold # #> type space r> base !
+     kbuild . ." Bit kernel" ;
 
-s" WimpForth Window" drop 1- 64 16 edit-window mainwindow
+
+s" WimpForth Window" drop 1- 96 32 edit-window mainwindow
 mainwindow dup to outwindow to applwin
 
 :class iconbar-icon <super icon <classpointer

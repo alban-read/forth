@@ -895,6 +895,9 @@ mouse-chain chain-add line@mouse>keyboard
                 here >r dup c, dup allot r@ 1+ swap move
                 0 c, align r> count \n->crlf ; immediate
 
+
+
+
 only forth also definitions
 
 

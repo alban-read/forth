@@ -2,19 +2,18 @@
 
 cr .( Loading Editor support...)
 
-variable msg_block 160 allot
+: find-editor
+  z"  startdesktoptask  " pocket  z!
+  pocket 18 + max-path
+  z" StrongED$Dir" OSVar@ dup pocket c!
+  0= abort" No Strong ED path"
+  pocket 1+ ;
 
-code OS_CLI ( ad -- f )
-  mov r0, tos
-  swi x " OS_CLI"
-  mov vs tos, # 0
-  mvn vc tos, # 0
-next c;
-
-\ start the StrongED editor, assumes under $.apps
+\ start the StrongED editor if we can find it.
 : editor
-  z" startdesktoptask $.apps.!stronged "
-   os_cli drop ;
+   find-editor os_cli drop ;
+
+variable msg_block 160 allot
 
 \ for messages to the editor
 code send_user_message
@@ -30,7 +29,7 @@ next c;
   msg_block 160 erase
   160 msg_block !
   &43b00 msg_block 16 + !
-  0 msg_block 12 + !
+  0 pocket 12 + !
   z' StrongED_OpenDoc '
   msg_block 20 + z!  ;
 

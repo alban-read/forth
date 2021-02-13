@@ -20,10 +20,6 @@ code Wimp_GetIconState ( buf -- )
   ldmfd sp !, { tos }
 next c;
 
-code 16*
-  mov tos, tos, lsl # 4
-next c;
-
 -1 constant WH_IconBarR
 -2 constant WH_IconBarL
 

@@ -3290,6 +3290,14 @@ code vsync
   swi " OS_Byte"
 next c;
 
+code OS_CLI ( ad -- f )
+  mov r0, tos
+  swi x " OS_CLI"
+  mov vs tos, # 0
+  mvn vc tos, # 0
+next c;
+
+
 0 local l0
 1 local l1
 2 local l2

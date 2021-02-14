@@ -253,6 +253,19 @@ code (loop)    ( -- )  \ Primitive form of LOOP
   add rp, rp, # 12
   ldmfd ip !, { r0, pc } c;
 
+
+code (?loop)    ( f -- )
+  orr s tos, tos, tos
+  ldmfd sp !, { tos }
+  next eq
+  ldr r0, [ rp ]
+  add s r0, r0, # 1
+  str vc r0, [ rp ]
+  ldr vc ip, [ ip ]
+  next vc
+  add rp, rp, # 12
+  ldmfd ip !, { r0, pc } c;
+
 code (+loop)   ( n -- )  \ Primitive form of +LOOP
   ldr r0, [ rp ]
   add s r0, r0, tos
@@ -2775,6 +2788,12 @@ next c;
     ?comp
     3 ?pairs
     compile (loop) dup cell+ <resolve
+    >resolve ; immediate
+
+: ?loop
+    ?comp
+    3 ?pairs
+    compile (?loop) dup cell+ <resolve
     >resolve ; immediate
 
 : +loop

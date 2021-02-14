@@ -272,7 +272,7 @@ synonym tabbing-on  tabing-on
 
 warning off
 
-: allot         ( n1 -- )               \ redefine ALLOT with a memory full check
+: allot         ( n1 -- )   \ redefine ALLOT with a memory full check
                 dup 1000 + ?memchk allot ;
 
 warning on
@@ -701,7 +701,8 @@ variable chain-link             \ linked list of chains
                 while   @
                 repeat  here swap ! 0 , ' , ;
 
-: chain-add-before ( chain_address -<word_to_add>- )    \ for reverse chains like BYE
+: chain-add-before ( chain_address -<word_to_add>- )
+\ for reverse chains like BYE
                 here over @ , ' , swap ! ;
 
 \ define some of the chains we need

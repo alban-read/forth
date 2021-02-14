@@ -37,7 +37,7 @@
     
     * AND FULL SOURCE INCLUDED - if you find bugs or features you
       don't like, correct them in the source until they work as
-      you like, ***and report the error, please***
+      you like.
       
     Otherwise WimpForth will behave like other Forths, please refer
     to standard literature ("Thinking Forth" - Leo Brodie) to learn
@@ -107,6 +107,8 @@
     you like (SPREAD IT), but do not charge money for it. And
     please, copy it completely whenever possible.
     
-
               
     Happy Forthing!
+
+    Martin Läuter
+

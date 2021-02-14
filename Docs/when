@@ -1,0 +1,36 @@
+\ non standard and not very useful
+\ example of how to compile/interpret new word
+
+
+\ add new conditional word.
+\ x@ 10 > when xxxxx
+\ conditionally execute next word.
+
+\ flag and address of word on stack.
+code (when)  ( f cfa -- )
+  mov r1, tos
+  ldmfd sp !, { tos, r0 }
+  orr s r0, r0, r0
+  next eq
+  mov pc, r1 c;
+
+\ find the address of the word
+\ if interpreting just call (when)
+\ if compiling compile the address of the
+\ word as a literal and compile the call to (when)
+
+
+\ f when xxxx
+: when
+    bl word ?uppercase
+    find 0= abort" undefined"
+    state @ if
+      compile lit , compile (when)
+    else
+      (when)
+    then ;
+ ; immediate
+
+
+
+

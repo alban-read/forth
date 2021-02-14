@@ -1,8 +1,8 @@
 
+\ used as scratch space for random experiments.
+\ edit scratch
+\ empty fload scratch
+\
 
-code test
-  teq r0, r0
-  teq pc, pc
-  bic ne r0, link, # &fc000003
-  mov eq r0, link
-c;
+
+

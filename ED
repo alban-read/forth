@@ -3,11 +3,11 @@
 cr .( Loading Editor support...)
 
 : find-editor
-  z"  startdesktoptask  " pocket  z!
-  pocket 18 + max-path
-  z" StrongED$Dir" OSVar@ dup pocket c!
-  0= abort" No Strong ED path"
-  pocket 1+ ;
+   z"  startdesktoptask  " pocket  z!
+   pocket 18 + max-path
+   z" StrongED$Dir" OSVar@ dup pocket c!
+   0= abort" No Strong ED path"
+   pocket 1+ ;
 
 \ start the StrongED editor if we can find it.
 : editor
@@ -26,27 +26,27 @@ next c;
 
 \ make an open doc message
 : edit-open
-  msg_block 160 erase
-  160 msg_block !
-  &43b00 msg_block 16 + !
-  0 pocket 12 + !
-  z' StrongED_OpenDoc '
-  msg_block 20 + z!  ;
+   msg_block 160 erase
+   160 msg_block !
+   &43b00 msg_block 16 + !
+   0 pocket 12 + !
+   z' StrongED_OpenDoc '
+   msg_block 20 + z!  ;
 
 \ edit word
 : ed ( <wordname> -- )
-  cur-file 160 erase
-  edit-open
-  .viewinfo drop drop
-  cur-file 1+ msg_block 37 + z!
-  send_user_message ;
+   cur-file 160 erase
+   edit-open
+   .viewinfo drop drop
+   cur-file 1+ msg_block 37 + z!
+   send_user_message ;
 
 \ edit filename
 : edit ( <filename> -- )
-  edit-open
-  bl word
-  pocket 1+ msg_block 37 + z! drop
-  send_user_message  ;
+   edit-open
+   bl word
+   pocket 1+ msg_block 37 + z! drop
+   send_user_message  ;
 
 
 \ NOTES on StrongED

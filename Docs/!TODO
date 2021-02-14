@@ -1,4 +1,5 @@
 Things to do:
+
   * respond to scroll request from the wimp
   * handle caret correctly
   * accelerate some code (I feel that the string
@@ -8,16 +9,17 @@ Perhaps somebody can come up with some proposals
 concerning the points above or some other
 improvement of the system.
 
+
 Alban Read notes
 Register usage
 
-R9  OP
-R10 TOS - top of stack
-R11 IP  - forth instruction pointer
-R12 RP  - return pointer (return stack)
-R13 SP  - data stack
-R14 link - used by branch instructions
-R15 PC	- program counter
+R9  OP    -
+R10 TOS   - top of stack
+R11 IP    - forth instruction pointer
+R12 RP    - return pointer (return stack)
+R13 SP    - data stack
+R14 link  - used by branch instructions
+R15 PC    - program counter
 
 
 Alban Read modifications to work on the RISC PC.
@@ -25,6 +27,10 @@ Added code cache clearence to allow the compiler to work on the StrongARM proces
 
 Other modifications
 Changed the definition of centre: ( the window was not on the screen.)
+
 Stopped processing the command line as it picks up garbage from the RISCOS buffer most of the time.
 
 Faked a cursor for the edit window.
+
+Other minor changes tracked in Github.
+

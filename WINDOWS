@@ -249,6 +249,7 @@ next c;
 
 
 
+
 \ &1 constant WF_TitleBar
 &2 constant WF_Movable
 \ &4 constant WF_VScrollBar

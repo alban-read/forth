@@ -1,0 +1,115 @@
+\ sprites for off screen display
+\
+create areasize 1024 1024 4 * * ,
+variable sprites
+create sprname z," offscn" 0 , align
+
+create sprptr 8 allot
+
+create sprw 1536 ,
+create sprh 1024 ,
+
+create sprx 800 ,
+create spry 600 ,
+
+create sprsav0 0 ,
+create sprsav1 0 ,
+create sprsav2 0 ,
+create sprsav3 0 ,
+
+code sprites@
+ stmfd sp !, { tos }
+ adr r0, sprites
+ ldr tos, [ r0 ]
+next c;
+
+code InitSpriteArea
+ mov r1, tos
+ ldmfd sp !, { tos }
+ mov r0, # 9
+ mov r3, # 256
+ add r0, r0, r3
+ swi " OS_SpriteOp"
+next c;
+
+code MakeSprite
+ stmfd sp !, { tos }
+ mov r0, # 16
+ mov r8, # 256
+ add r0, r0, r8
+ adr r8, sprites
+ ldr r1, [ r8 ]
+ adr r2, sprname
+ mov r3, # 0
+ mov r4, # 0
+ mov r5, # 0
+ adr r8, sprw
+ ldr r6, [ r8 ]
+ adr r8, sprh
+ ldr r7, [ r8
+ mov r8, # 0
+ swi " OS_SpriteOp"
+ mov tos, r2
+next c;
+
+code TestPlot
+ mov r0, # 34
+ mov r8, # 256
+ add r0, r0, r8
+ adr r8, sprites
+ ldr r1, [ r8 ]
+ adr r2, sprname
+ adr r8, sprx
+ ldr r3, [ r8 ]
+ adr r8, spry
+ ldr r4, [ r8 ]
+ mov r5, # 0
+ swi " OS_SpriteOp"
+next c;
+
+code redirect
+ mov r0, # 60
+ mov r8, # 256
+ add r0, r0, r8
+ adr r8, sprites
+ ldr r1, [ r8 ]
+ adr r2, sprname
+ mov r3, # 0
+ swi " OS_SpriteOp"
+ adr r8, sprsav0
+ str r0 [ r8 ]
+ adr r8, sprsav1
+ str r1 [ r8 ]
+ adr r8, sprsav2
+ str r2 [ r8 ]
+ adr r8, sprsav3
+ str r3 [ r8 ]
+next c;
+
+code unredirect
+ adr r8, sprsav0
+ ldr r0 [ r8 ]
+ adr r8, sprsav1
+ ldr r1 [ r8 ]
+ adr r8, sprsav2
+ ldr r2 [ r8 ]
+ adr r8, sprsav3
+ ldr r3 [ r8 ]
+ swi " OS_SpriteOp"
+next c;
+
+
+: init_sprites
+   areasize @ malloc sprites !
+   sprites@ areasize @ erase
+   areasize @ sprites@ !
+   0  sprites@ 4+ !
+   16 sprites@ 8+ !
+   16 sprites@ 12 + !
+
+   sprites@ InitSpriteArea
+   MakeSprite
+ ;
+
+
+

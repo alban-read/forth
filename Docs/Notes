@@ -5,45 +5,49 @@ This forth for RISC OS by Martin Läuter is inspired by Win32Forth by Andrew McKe
 I think I found a copy of this FORTH aound Y2K; and ran it on my 200Mhz RISC PC.
 I still run RISC OS; now on a 1.5Ghz processor.
 
-For a lot of Micro computers; FORTH was a faster language than BASIC; and lighter than C. I used and liked FORTH on 8bit systems in the 1980s; including CPM and early DOS systems; where I used Tom Zimmers FPC.
+For a lot of Micro computers; FORTH was a faster language than BASIC; and lighter than C. I used liked FORTH on 8bit systems in the 1980s; including CPM and early DOS systems; where I used Tom Zimmers FPC.
 
 BBC BASIC reduced the need for FORTH on RISC OS as that BASIC is very fast and includes an assembler (as does FORTH.)
 FORTH is in no sense a safe language; and RISC OS is not a well protected operating system; I think I find the string functions in particular easy to blow up; which of course blows up the OS; another reason to stick with BASIC.
 
 
 Just for context:-
+
 In 1994 The Basic compiler cost 120.00 the C compiler cost 180.00; the assembler cost 120.00 and the manual was 25.00
 A suitable developer system was between 1200.00 and 1500.00.
 
 FORTH does not need any other development tools; which is interesting and less expensive; since it is free.
 
-You can get all that development kit now from ROOL for 50.00 in our worthless 2021 money.
-And the computer could be a Raspberry Pi 400.
+You can get the C and BASIC compilers in the  DDE development kit now from ROOL for 50.00 in our worthless 2021 money.
+Thats perhaps five drinks in pub in London or Paris.
+
+And the computer could be a Raspberry Pi 400 which equiped with processors designed in 2015 is stupidly fast.
 
 
 Minor changes by Alban Read
+
 Added code sync; so that the processor cache is flushed when a new word is compiled; this was required so that forth could run on strong arm processors.
 Added vsync to reduce the flickering displays in edit windows.
 Updated current-dir$ to use the current file system.
+Faked a cursor, fixed external editor words to use StrongED.
+Split kernel into original 26bit and new 32bit versions.
 
-
-
-F2 is the app that is run.
+FWINxx is the app that is run.
 
 rebuild
 
-.. The kernal
+.. The kernel
 
 start F2
 fload meta
-kernal app is made (around 26k)
+kernel app is made (around 26k)
 bye
 
 .. The forth
 
-click on kernal
-fload extend
-F2 is saved (around 140k)
+click on kernel
+fload makewin or fload makecons
+FWINxx or FCONS is saved
 bye
 
 You now have a new forth in F2

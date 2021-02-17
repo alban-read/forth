@@ -58,6 +58,16 @@ code drawcursor ( x y x1 y1 --  )
  swi " OS_Plot"
 next c;
 
+\ mod to not draw background.
+code Wimp_CreateTransWindow ( buf -- hndl )
+  mov r1, tos
+  add r8, r1, # 35
+  mov r0, # &FF
+  strb r0, [ r8 ]
+  swi " Wimp_CreateWindow"
+  mov tos, r0
+next c;
+
 code Wimp_CreateWindow ( buf -- hndl )
   mov r1, tos
   swi " Wimp_CreateWindow"
@@ -268,6 +278,7 @@ int mypopup
 64 bytes title"
 int ?open
 int sbcol
+int trans?
 
 
 : SetSize     { dx dy -- }
@@ -293,7 +304,8 @@ int sbcol
 : SetTiColour   ( fg bg sel -- )
      &ff and 16 lshift sb/ticolour &ffff and or to sb/ticolour
      &ff and 8 lshift swap &ff and or
-     ti/wacolour &ffff0000 and or      to ti/wacolour ;
+     ti/wacolour &ffff0000 and or to ti/wacolour
+     ;
 
 : SetWaColour   ( fg bg -- )
      &ff and 8 lshift swap &ff and or 16 lshift
@@ -305,7 +317,8 @@ int sbcol
 
 : SetSBColour   ( in out -- )
      &ff and swap &ff and 8 lshift or
-     sb/ticolour &ff0000 and or to sb/ticolour ;
+     sb/ticolour &ff0000 and or to sb/ticolour
+ ;
 
 : SetScrollPos   ( x y -- )
      to yscroll to xscroll ;
@@ -375,7 +388,11 @@ int sbcol
      On_Init: [[ self ]]
      Move: self
      here 512 + aligned dup Build: [[ self ]] drop
-     Wimp_CreateWindow to hWnd
+     trans? if
+      Wimp_CreateTransWindow to hWnd
+     else
+      Wimp_CreateWindow to hWnd
+     then
 
 ;m
 
@@ -461,7 +478,8 @@ variable caretpos 64 allot
 create screenmem 20 1024 * allot
 
 0 value spron
-7 value fcol
+7  value fcolr
+77 value bcolr
 
 :class text-window <super window
 int cols
@@ -478,6 +496,9 @@ int curon
     spron if
      toScreen
      xmin ymin plotSprite
+    else
+     bcolr gcol
+     0 0 4000 4000 fillrect
     then ;
 
 : Update+Clear ( x1 y1 x2 y2 -- )
@@ -534,10 +555,12 @@ int curon
      to rows to cols
      cols 16* rows 5 lshift 2dup
      SetSize SetWaSize
+    -1 to trans?
      SetTitleText: self ;m
 
 :m On_Init:   ( -- )
-     0 to fcol
+     0 to fcolr
+     126 to bcolr
      screenmem to &thescreen
      screenmem cols rows * + to &endscreen ;m
 
@@ -600,13 +623,14 @@ next c;
 
 : DoRectangle
     redraw
+
     cols 2r@ drop
     rectcalc ( ad len #lines y x )
     plotpos 2! 0
     ?do plotpos 2@ 188 OS_Plot     \ position on the screen
       over &thescreen + dup &endscreen >= if drop leave then
       over                         \ determine string to print
-      fcol colour fcol gcol
+      fcolr colour fcolr gcol
       -trailing OS_WriteN          \ print it
       -32 plotpos cell+ +!         \ bump screen pos
       swap cols + swap             \ bump source

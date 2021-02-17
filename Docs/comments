@@ -60,5 +60,12 @@ These are illegal instructions and will certainly crash on older hardware includ
 
 Added orange coloured cursor to the edit window, handle caret events, avoid drawing on other peoples windows, fixed bug that sometimes stopped the icon from displaying in the icon bar.
 
+## Sprite
+
+To allow graphics in the forth window I have added a sprite layer.
+You can draw onto the sprite; and choose to display it under the text console; or not using sprite on and sprite off.
+
+All graphics commands are normally directed at the sprite.
+
 
 

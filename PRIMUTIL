@@ -786,7 +786,7 @@ defer "pushkeys ' 2drop is "pushkeys
 0 value heapptr
 0 value heapsize
 
-: heapon   ( -- ) 1024 1024 * 16 *
+: heapon   ( -- ) 1024 1024 * 4 *
     0 to tot-malloc
     heapsize abort" You already have a heap."
     -1 swap memory-total &8000 - dup>r + Wimp_SlotSize

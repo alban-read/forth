@@ -1,0 +1,49 @@
+\ testing background sprite
+
+variable seed
+
+: initiate-seed ( -- )  74755 seed ! ;
+
+: random  ( -- n )  seed @ 1309 * 13849 + 65535 and dup seed ! ;
+
+: rnd random swap mod ;
+
+initiate-seed
+
+: rcirc
+  120 rnd gcol
+  800 rnd
+  800 rnd
+  2dup
+  100 rnd +
+  swap
+  100 rnd +
+  2swap
+  fillcircle ;
+   
+
+: rrect
+  32 rnd gcol
+  1500 rnd
+  1000 rnd
+  1500 rnd
+  1000 rnd
+  fillrect ;
+
+: rline
+  127 rnd gcol
+  1500 rnd
+  1000 rnd
+  1500 rnd
+  1000 rnd
+  line ;
+
+: rrects
+  1000 1 do
+   rrect
+  loop ;
+
+: rlines
+  1000 1 do
+   rline
+  loop ;

@@ -3298,6 +3298,13 @@ code OS_CLI ( ad -- f )
 next c;
 
 
+
+
+32 value kbuild
+
+
+
+
 0 local l0
 1 local l1
 2 local l2
@@ -3343,7 +3350,6 @@ here &8000 ad>of &ea000000 or coldstart !-t
 16384 filebuff !-t
 
 
-32 value kbuild
 
 dovoc  resolves <vocabulary>
 ' scan resolves scan

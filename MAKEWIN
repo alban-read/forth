@@ -24,6 +24,8 @@ fload args            \ local variable support
 fload ed
 
 
+fload sprites
+
 \ Object oriented support
 
 fload class
@@ -33,6 +35,7 @@ fload icons
 fload menus
 fload windows
 fload controls
+
 
 application ForthApp
 
@@ -52,6 +55,7 @@ displayfield ver2
 
 :m On_Init:    ( -- )
 
+     initSprites
      720 220  2dup  SetSize  SetWaSize
      c" About this Program"  SetTitleText: self
      
@@ -99,17 +103,28 @@ popup ibpopup "WimpForth"
 ibpopup to barpopup
 
 popup fpopup "WimpForth"
-  menuitem "Stack" s" .s" "pushkeys 13 pushkey ;
+
+ menuitem "Stack" s" .s" "pushkeys 13 pushkey ;
+
+ menuitem "Sprite On"
+  initSprites 1 to spron cls ;
+
+ menuitem "Sprite Off"
+  0 to spron cls ;
+
  :menuitem ord "Order" order ;
+
   menuitem "Error Test"  z" &11 This is an error Test" ErrorBox . ;
+
   submenu "File" "File"
     menuitem "Open" beep ;
     menuitem "Close" beep ;
     menuitem "Load"  ;
   endsubmenu
+
  :menuitem caps-flag "Ignore Case" caps @ 0= caps ! ;
   menuseparator
-  menuitem "Quit" bye ;
+  menuitem "Quit"  bye ;
 
 PreMenu:
    caps @ Check: caps-flag ;
@@ -152,7 +167,8 @@ align
                 decimal
                 0 to source-id                  \ not loading from a file yet
                 initialization-chain do-chain
-                
+
+                initSprites
                 start: ForthApp
 
                 center: mainwindow start: mainwindow

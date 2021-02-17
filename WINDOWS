@@ -45,80 +45,6 @@ comment:
 comment;
 
 
-
-
-\ at x y do t
-code os_plot_xy ( x y t -- )
- mov r0, tos
- ldmfd sp !, { r3, r4, tos }
- mov r1, r4
- mov r2, r3
- swi " OS_Plot"
-next c;
-
-\ line from x y to x1 y1
-code line ( x y x1 y1 --  )
- mov r3, tos
- ldmfd sp !, { r4, r5, r6, tos }
- mov r0, # 4
- mov r1, r4
- mov r2, r3
- swi " OS_Plot"
- mov r1, r6
- mov r2, r5
- mov r0, # 5
- swi " OS_Plot"
-next c;
-
-code circle ( x y x1 y1 --  )
- mov r3, tos
- ldmfd sp !, { r4, r5, r6, tos }
- mov r0, # 4
- mov r1, r4
- mov r2, r3
- swi " OS_Plot"
- mov r1, r6
- mov r2, r5
- mov r0, # 149
- swi " OS_Plot"
-next c;
-
-code fillcircle ( x y x1 y1 --  )
- mov r3, tos
- ldmfd sp !, { r4, r5, r6, tos }
- mov r0, # 4
- mov r1, r4
- mov r2, r3
- swi " OS_Plot"
- mov r1, r6
- mov r2, r5
- mov r0, # 157
- swi " OS_Plot"
-next c;
-
-code fillrect ( x y x1 y1 --  )
- mov r3, tos
- ldmfd sp !, { r4, r5, r6, tos }
- mov r0, # 4
- mov r1, r4
- mov r2, r3
- swi " OS_Plot"
- mov r1, r6
- mov r2, r5
- mov r0, # 101
- swi " OS_Plot"
-next c;
-
-
-: gcol 18 OS_WriteC 0 OS_WriteC OS_WriteC ;
-
-: colour 17 OS_WriteC OS_WriteC ;
-
-: bcolour 17 OS_WriteC  128 + OS_WriteC ;
-
-: bcol 18 OS_WriteC 0 OS_WriteC 128 + OS_WriteC ;
-
-
 code drawcursor ( x y x1 y1 --  )
  mov r3, tos
  ldmfd sp !, { r4, r5, r6, tos }
@@ -341,6 +267,7 @@ int #icons
 int mypopup
 64 bytes title"
 int ?open
+int sbcol
 
 
 : SetSize     { dx dy -- }
@@ -449,12 +376,16 @@ int ?open
      Move: self
      here 512 + aligned dup Build: [[ self ]] drop
      Wimp_CreateWindow to hWnd
+
 ;m
 
 :m Open:     ( -- )
      hWnd 0= if xmin ymin Create: self then
      ^base Wimp_OpenWindow
      true to ?open
+     initSprites? 1 = if
+      toSprite 76 gcol 0 0 4000 4000 fillrect toScreen
+     then
  ;m
 
 :m Close:     ( -- )
@@ -526,6 +457,12 @@ int ?open
 align
 variable caretpos 64 allot
 
+\ no need to malloc this
+create screenmem 20 1024 * allot
+
+0 value spron
+7 value fcol
+
 :class text-window <super window
 int cols
 int rows
@@ -536,11 +473,17 @@ int xcur
 int ycur
 int curon
 
+
+: redraw
+    spron if
+     toScreen
+     xmin ymin plotSprite
+    then ;
+
 : Update+Clear ( x1 y1 x2 y2 -- )
     -32* 32+ swap 16* 32+ 2swap 1+ -32* swap 16*
     Hwnd Wimp_ForceRedraw
-     ;
-
+ ;
 
 : hascaret?
    caretpos Wimp_GetCaretPosition
@@ -566,7 +509,6 @@ int curon
     xcur ycur xcur 1+ over Update+Clear
    drop
 ;m
-
 
 :m ShowCaret:
     0 0
@@ -595,13 +537,14 @@ int curon
      SetTitleText: self ;m
 
 :m On_Init:   ( -- )
-     rows cols * dup allocate abort" Not enough Heap!"
-     tuck to &thescreen 2dup blank
-     + to &endscreen ;m
+     0 to fcol
+     screenmem to &thescreen
+     screenmem cols rows * + to &endscreen ;m
 
 :m On_Done:   ( -- )
-     &thescreen free drop
-     0 to &thescreen 0 to &endscreen ;m
+
+     0 to &thescreen 0 to &endscreen
+      ;m
 
 2variable plotpos
 
@@ -656,37 +599,44 @@ next c;
   then  ;
 
 : DoRectangle
+    redraw
     cols 2r@ drop
     rectcalc ( ad len #lines y x )
     plotpos 2! 0
     ?do plotpos 2@ 188 OS_Plot     \ position on the screen
       over &thescreen + dup &endscreen >= if drop leave then
       over                         \ determine string to print
+      fcol colour fcol gcol
       -trailing OS_WriteN          \ print it
       -32 plotpos cell+ +!         \ bump screen pos
       swap cols + swap             \ bump source
     loop 2drop
     draw_block
+
+
  ;
 
 :m On_Redraw: ( block -- )
-    \ vsync \ may not be needed now.
+     ToScreen
      dup>r Wimp_RedrawWindow
      begin while
        DoRectangle
        r@ Wimp_GetRectangle
      repeat r>drop
+     ToSprite
     ;m
 
 : Update ( x1 y1 x2 y2 -- )       \ 1=bottom left
    -32* block dup>r 16+ !        \ 2=top right
     16* r@ 12 + ! 1+ -32* r@ 8+ !  16* r@ 4+ !
     hWnd r@ !
+    ToScreen
     r@ Wimp_UpdateWindow
     begin while
       DoRectangle
       r@ Wimp_GetRectangle
     repeat r>drop
+    ToSprite
     ;
 
 : PutText ( ad len -- x y )
@@ -696,8 +646,7 @@ next c;
      xcur ycur rot +to xcur
      curon if
       xcur 1-  ycur xcur 1+ ycur Update+Clear
-     then
-   ;
+     then   ;
 
 : UpdateText ( x y -- )
      xcur ycur Update
@@ -708,11 +657,12 @@ next c;
       ;m
 
 : Scroll ( -- )
-
+       ToScreen
        &thescreen cols + &thescreen rows 1- cols * dup>r cmove
        &thescreen r> + cols blank
        rows 1- -32* 0 -32 cols 16* rows -32* 0 hWnd Wimp_BlockCopy
-;
+       ToSprite
+   ;
 
 :m PutCR: ( -- )
      0 to xcur
@@ -726,7 +676,7 @@ next c;
 :m BackSpace: ( -- )
      xcur if -1 +to xcur
             xcur ycur xcur 1+ over Update+Clear
-          else 7 OS_WriteC then
+          else  7 OS_WriteC  then
       ;m
 
 :m Cls:       ( -- )
@@ -845,6 +795,7 @@ mainwindow dup to outwindow to applwin
                barpopup to lastpopup endof
           4 of drop open: mainwindow endof
      endcase
+
  ;m
 
 ;class
@@ -864,6 +815,8 @@ CKey keybuf
 create PollBuf 256 allot
 
 : pause'
+
+    toScreen
     PollBuf 0 Wimp_Poll
     case
       1 of          On_Redraw: [[ getwin ]] endof
@@ -883,7 +836,7 @@ create PollBuf 256 allot
 \     10 of        On_ScrolReq: [[ getwin ]] endof
 \     13 of On_NonZeroPollWord: [[ getwin ]] endof
      ( otherwise ) nip ( the pointer to block )
-    endcase ;
+    endcase toSprite ;
 
 :m ClassInit:
 
@@ -1018,7 +971,8 @@ forth-io-chain chain-add window-io
 : .leaving
     ." Leaving..." cr ;
 
-: ExitWimp &4b534154 TaskHndl Wimp_CloseDown ;
+: ExitWimp toScreen &4b534154 TaskHndl Wimp_CloseDown ;
+
 
 bye-chain chain-add .leaving
 

@@ -108,12 +108,12 @@ popup fpopup "WimpForth"
  
  menuitem "Stack" s" .s" "pushkeys 13 pushkey ;
 
- menuitem "Sprite On"
+ menuitem "Graphics On"
   initSprites
   1 to spron
   Redraw: mainwindow ;
 
- menuitem "Sprite Off"
+ menuitem "Graphics off"
   0 to spron
   Redraw: mainwindow ;
 

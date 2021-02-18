@@ -1,4 +1,4 @@
 dir <Obey$Dir>
 IconSprites <Obey$Dir>.!Sprites
-WimpSlot -Max 2m -Min 1m
+WimpSlot -Max 2m -Min 2m
 FWIN32

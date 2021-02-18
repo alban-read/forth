@@ -104,13 +104,18 @@ ibpopup to barpopup
 
 popup fpopup "WimpForth"
 
+ menuitem "Refresh" Redraw: mainwindow ;
+ 
  menuitem "Stack" s" .s" "pushkeys 13 pushkey ;
 
  menuitem "Sprite On"
-  initSprites 1 to spron cls ;
+  initSprites
+  1 to spron
+  Redraw: mainwindow ;
 
  menuitem "Sprite Off"
-  0 to spron cls ;
+  0 to spron
+  Redraw: mainwindow ;
 
  :menuitem ord "Order" order ;
 

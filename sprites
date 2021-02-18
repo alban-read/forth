@@ -193,7 +193,7 @@ next c;
     16 sprites@ 8+ !
     16 sprites@ 12 + !
     sprites@ InitSpriteArea
-    MakeSprite sprptr !
+     MakeSprite sprptr !
     then
    1 to InitSprites?
  ;

@@ -44,7 +44,7 @@ comment:
 
 comment;
 
-
+\ part of fake caret
 code drawcursor ( x y x1 y1 --  )
  mov r3, tos
  ldmfd sp !, { r4, r5, r6, tos }
@@ -58,10 +58,34 @@ code drawcursor ( x y x1 y1 --  )
  swi " OS_Plot"
 next c;
 
+code Wimp_SetColour ( color )
+ mov r0, tos
+ swi " Wimp_SetColour "
+ ldmfd sp !, { tos }
+next c;
+
+code Wimp_TextColour ( color )
+ mov r0, tos
+ swi " Wimp_TextColour "
+ ldmfd sp !, { tos }
+next c;
+
+: setColour
+  Wimp_SetColour ;
+
+: setTextColour
+  Wimp_TextColour ;
+
+
+: paper
+  127 +
+  SetColour 16 OS_WriteC ;
+
+
 \ mod to not draw background.
 code Wimp_CreateTransWindow ( buf -- hndl )
   mov r1, tos
-  add r8, r1, # 35
+  add r8, r1, # 35 \ we draw background
   mov r0, # &FF
   strb r0, [ r8 ]
   swi " Wimp_CreateWindow"
@@ -185,7 +209,6 @@ next c;
 
 
 
-
 \ &1 constant WF_TitleBar
 &2 constant WF_Movable
 \ &4 constant WF_VScrollBar
@@ -279,6 +302,10 @@ int mypopup
 int ?open
 int sbcol
 int trans?
+
+
+:m  UpdateWindow:
+     ^base Wimp_UpdateWindow ;m
 
 
 : SetSize     { dx dy -- }
@@ -393,6 +420,10 @@ int trans?
      else
       Wimp_CreateWindow to hWnd
      then
+     initSprites? 1 = if
+      toSprite
+       2 paper
+     then
 
 ;m
 
@@ -400,9 +431,6 @@ int trans?
      hWnd 0= if xmin ymin Create: self then
      ^base Wimp_OpenWindow
      true to ?open
-     initSprites? 1 = if
-      toSprite 76 gcol 0 0 4000 4000 fillrect toScreen
-     then
  ;m
 
 :m Close:     ( -- )
@@ -491,15 +519,17 @@ int xcur
 int ycur
 int curon
 
-
+\ sprite or rectangle.
 : redraw
+    toScreen
     spron if
-     toScreen
      xmin ymin plotSprite
     else
      bcolr gcol
-     0 0 4000 4000 fillrect
+     12 OS_WriteC
     then ;
+
+
 
 : Update+Clear ( x1 y1 x2 y2 -- )
     -32* 32+ swap 16* 32+ 2swap 1+ -32* swap 16*
@@ -606,6 +636,7 @@ next c;
 
 \ fake a cursor
 : draw_block
+  toScreen
   hascaret?
   xmin 0 >
   ymin 0 >
@@ -623,21 +654,18 @@ next c;
 
 : DoRectangle
     redraw
-
     cols 2r@ drop
     rectcalc ( ad len #lines y x )
     plotpos 2! 0
     ?do plotpos 2@ 188 OS_Plot     \ position on the screen
       over &thescreen + dup &endscreen >= if drop leave then
       over                         \ determine string to print
-      fcolr colour fcolr gcol
+      fcolr gcol
       -trailing OS_WriteN          \ print it
       -32 plotpos cell+ +!         \ bump screen pos
       swap cols + swap             \ bump source
     loop 2drop
     draw_block
-
-
  ;
 
 :m On_Redraw: ( block -- )
@@ -647,7 +675,6 @@ next c;
        DoRectangle
        r@ Wimp_GetRectangle
      repeat r>drop
-     ToSprite
     ;m
 
 : Update ( x1 y1 x2 y2 -- )       \ 1=bottom left
@@ -660,8 +687,14 @@ next c;
       DoRectangle
       r@ Wimp_GetRectangle
     repeat r>drop
-    ToSprite
     ;
+
+:m Redraw:
+   0 0 cols rows Update 0 rows 1- cols 0
+   toScreen
+   Update
+   toSprite
+ ;m
 
 : PutText ( ad len -- x y )
      dup xcur + cols - dup 0>=
@@ -685,7 +718,7 @@ next c;
        &thescreen cols + &thescreen rows 1- cols * dup>r cmove
        &thescreen r> + cols blank
        rows 1- -32* 0 -32 cols 16* rows -32* 0 hWnd Wimp_BlockCopy
-       ToSprite
+
    ;
 
 :m PutCR: ( -- )
@@ -704,6 +737,7 @@ next c;
       ;m
 
 :m Cls:       ( -- )
+     toScreen
      &thescreen cols rows * blank
      0 rows 1- cols 0 Update+Clear
      0 to xcur 0 to ycur

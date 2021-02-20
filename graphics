@@ -11,7 +11,7 @@ variable seed
 initiate-seed
 
 : rcirc
-  120 rnd gcol
+  63 rnd gcol
   800 rnd
   800 rnd
   2dup
@@ -23,19 +23,21 @@ initiate-seed
    
 
 : rrect
-  32 rnd gcol
-  1500 rnd
-  1000 rnd
-  1500 rnd
-  1000 rnd
+  63 rnd gcol
+  1536 rnd
+  1024 rnd
+  2dup
+  100 rnd + 10 +
+  swap
+  100 rnd + 10 +
   fillrect ;
 
 : rline
-  127 rnd gcol
+  63 rnd gcol
+  1536 rnd
+  1024 rnd
   1500 rnd
-  1000 rnd
-  1500 rnd
-  1000 rnd
+  1024 rnd
   line ;
 
 : rrects
@@ -47,3 +49,10 @@ initiate-seed
   1000 1 do
    rline
   loop ;
+
+: lines
+  1000 1 do
+   rlines
+   pause
+  loop
+  ;

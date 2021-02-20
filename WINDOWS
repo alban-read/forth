@@ -208,7 +208,6 @@ code Wimp_SendMessage ( Hicon Htask block eventcode -- )
 next c;
 
 
-
 \ &1 constant WF_TitleBar
 &2 constant WF_Movable
 \ &4 constant WF_VScrollBar
@@ -530,7 +529,6 @@ int curon
     then ;
 
 
-
 : Update+Clear ( x1 y1 x2 y2 -- )
     -32* 32+ swap 16* 32+ 2swap 1+ -32* swap 16*
     Hwnd Wimp_ForceRedraw
@@ -589,8 +587,8 @@ int curon
      SetTitleText: self ;m
 
 :m On_Init:   ( -- )
-     0 to fcolr
-     126 to bcolr
+
+     20 OS_WriteC 0 to fcolr
      screenmem to &thescreen
      screenmem cols rows * + to &endscreen ;m
 

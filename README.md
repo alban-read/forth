@@ -88,6 +88,15 @@ The forth interpreter NEXT is only one instuction on the ARM 32.
 
 ## Recent History Summary
 
+### Current work in progress
+
+Presently I am adding slowly adding support for graphics to the forth window; the current window was text only.
+
+I have added an optional graphics layer beneath the text and made the text background transparent.
+
+The graphics layer is created using a RISC OS sprite; graphics commands; such as line, rectangle, circle etc; are directed to the sprite and the screen is updated using refresh in the menu; or show at the command line.
+
+
 
 ### In Reverse order - newest first.
 

@@ -733,6 +733,7 @@ next c;
        &thescreen cols + &thescreen rows 1- cols * dup>r cmove
        &thescreen r> + cols blank
        rows 1- -32* 0 -32 cols 16* rows -32* 0 hWnd Wimp_BlockCopy
+       spron if Redraw: self then
 
    ;
 
@@ -1024,6 +1025,8 @@ create d&dbuf 64 allot
 : w?cr       wgetxy drop + wgetcolrow drop > if cr then ;
 
 : wcls       Cls: outwindow  ;
+
+: show Redraw: mainwindow ;
 
 : window-io     ( -- )                  \ reset to Forth IO words
                 ['] wemit      is emit

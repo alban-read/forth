@@ -90,7 +90,7 @@ The forth interpreter NEXT is only one instuction on the ARM 32.
 
 ### Current work in progress
 
-Presently I am adding slowly adding support for graphics to the forth window; the current window was text only.
+Presently I am gradually adding support for graphics to the FORTH window; the current window was text only.
 
 I have added an optional graphics layer beneath the text and made the text background transparent.
 

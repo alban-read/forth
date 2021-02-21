@@ -4,5 +4,15 @@
 \ empty fload scratch
 \
 
+: b. base @ swap 2 base ! u. base ! ;
 
 
+: test1
+  dimmer gfg %00110000 gcoltint ;
+
+
+: test2
+  brighter gfg %00111000 gcoltint ;
+
+: test3
+  noop ;

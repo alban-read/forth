@@ -37,6 +37,15 @@ fload windows
 fload controls
 
 
+variable seed
+
+: initiate-seed ( -- )  74755 seed ! ;
+
+: random  ( -- n )  seed @ 1309 * 13849 + 65535 and dup seed ! ;
+
+: rnd random swap mod ;
+
+
 application ForthApp
 
 :object infobox <super dialog

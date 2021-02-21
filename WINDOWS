@@ -58,28 +58,40 @@ code drawcursor ( x y x1 y1 --  )
  swi " OS_Plot"
 next c;
 
-code Wimp_SetColour ( color )
- mov r0, tos
- swi " Wimp_SetColour "
- ldmfd sp !, { tos }
+code SetGraphicsColour
+  mov r1, tos
+  mov r0, # 0
+  swi " OS_SetColour"
+  ldmfd sp !, { tos }
 next c;
 
-code Wimp_TextColour ( color )
- mov r0, tos
- swi " Wimp_TextColour "
- ldmfd sp !, { tos }
+code SetTextColour
+  mov r1, tos
+  mov r0, # %1000000
+  swi " OS_SetColour"
+  ldmfd sp !, { tos }
 next c;
 
-: setColour
-  Wimp_SetColour ;
+code SetGraphicsBgColour
+  mov r1, tos
+  mov r0, # %0010000
+  swi " OS_SetColour"
+  ldmfd sp !, { tos }
+next c;
 
-: setTextColour
-  Wimp_TextColour ;
+
+code SetTextBgColour
+  mov r1, tos
+  mov r0, #  %1010000
+  swi " OS_SetColour"
+  ldmfd sp !, { tos }
+next c;
+
 
 
 : paper
-  127 +
-  SetColour 16 OS_WriteC ;
+  SetGraphicsBgColour
+  16 OS_WriteC ;
 
 
 \ mod to not draw background.
@@ -421,7 +433,7 @@ int trans?
      then
      initSprites? 1 = if
       toSprite
-       2 paper
+       &AAAAAA paper
      then
 
 ;m
@@ -505,7 +517,7 @@ variable caretpos 64 allot
 create screenmem 20 1024 * allot
 
 0 value spron
-7  value fcolr
+&AA0000  value fcolr
 77 value bcolr
 
 :class text-window <super window
@@ -587,8 +599,6 @@ int curon
      SetTitleText: self ;m
 
 :m On_Init:   ( -- )
-
-     20 OS_WriteC 0 to fcolr
      screenmem to &thescreen
      screenmem cols rows * + to &endscreen ;m
 
@@ -658,7 +668,7 @@ next c;
     ?do plotpos 2@ 188 OS_Plot     \ position on the screen
       over &thescreen + dup &endscreen >= if drop leave then
       over                         \ determine string to print
-      fcolr gcol
+      fcolr SetGraphicsColour
       -trailing OS_WriteN          \ print it
       -32 plotpos cell+ +!         \ bump screen pos
       swap cols + swap             \ bump source

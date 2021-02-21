@@ -138,32 +138,32 @@ code circle ( x y x1 y1 --  )
 next c;
 
 code fillcircle ( x y x1 y1 --  )
- mov r3, tos
+ mov   r3, tos
  ldmfd sp !, { r4, r5, r6, tos }
- mov r0, # 4
- mov r1, r4
- mov r2, r3
- swi " OS_Plot"
- mov r1, r6
- mov r2, r5
- mov r0, # 157
- swi " OS_Plot"
+ mov   r0, # 4
+ mov   r1, r4
+ mov   r2, r3
+ swi   " OS_Plot"
+ mov   r1, r6
+ mov   r2, r5
+ mov   r0, # 157
+ swi   " OS_Plot"
 next c;
 
 
 code fillrect ( x y x1 y1 --  )
- mov r1, tos
- ldmfd sp !, {  tos }
- mov r2, tos
- mov r0, # 4
- swi " OS_Plot"
- ldmfd sp !, {  tos }
- mov r1, tos
- ldmfd sp !, {  tos }
- mov r2, tos
- mov r0, # 101
- swi " OS_Plot"
- ldmfd sp !, {  tos }
+ mov   r1, tos
+ ldmfd sp !, { tos }
+ mov   r2, tos
+ mov   r0, # 4
+ swi   " OS_Plot"
+ ldmfd sp !, { tos }
+ mov   r1, tos
+ ldmfd sp !, { tos }
+ mov   r2, tos
+ mov   r0, # 101
+ swi   " OS_Plot"
+ ldmfd sp !, { tos }
 next c;
 
 
@@ -185,49 +185,11 @@ next c;
 variable origin 29 c, 0 w, 0 w,  align
 
 code setorigin
- adr r0, origin
- mov r1, # 5
- swi " OS_WriteN"
+ adr    r0, origin
+ mov    r1, # 5
+ swi    " OS_WriteN"
 next c;
 
-
-variable tinting 64 allot align
-
-
-\ tint
-&C0 constant brighter
-&80 constant lighter
-&40 constant dimmer
-&00 constant darker
-
-0 constant tfg
-1 constant tbg
-2 constant gfg
-3 constant gbg
-
-( action [0..4 text, graphics ]  tint [0..4] )
-
-code gcoltint ( col act tint )
- mov r4, tos
- ldmfd sp !, { r5, r6, tos }
- adr r8, tinting
- mov r0, # 18
- strb r0, [ r8 ]
- mov r0, # 0
- strb r0, [ r8, # 1 ]!
- strb r4, [ r8, # 1 ]!
- mov r0, # 23
- strb r0, [ r8, # 1 ]!
- mov r0, # 17
- strb r0, [ r8, # 1 ]!
- strb r5, [ r8, # 1 ]!
- strb r6, [ r8, # 1 ]!
- mov  r0, # 0
- strb r0, [ r8, # 1 ]!
- adr r0, tinting
- mov r1, # 7
- swi " OS_WriteN"
-next c;
 
 
 \ normal behaviour in the FORTH window is ToSprite

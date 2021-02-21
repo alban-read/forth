@@ -1,17 +1,10 @@
 \ testing background sprite
 
-variable seed
-
-: initiate-seed ( -- )  74755 seed ! ;
-
-: random  ( -- n )  seed @ 1309 * 13849 + 65535 and dup seed ! ;
-
-: rnd random swap mod ;
 
 initiate-seed
 
 : rcirc
-  63 rnd gcol
+  random SetGraphicsColour
   800 rnd
   800 rnd
   2dup
@@ -23,7 +16,7 @@ initiate-seed
    
 
 : rrect
-  63 rnd gcol
+  random SetGraphicsColour
   1536 rnd
   1024 rnd
   2dup
@@ -33,7 +26,7 @@ initiate-seed
   fillrect ;
 
 : rline
-  63 rnd gcol
+  random SetGraphicsColour
   1536 rnd
   1024 rnd
   1500 rnd

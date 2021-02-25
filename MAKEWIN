@@ -64,7 +64,6 @@ displayfield ver2
 
 :m On_Init:    ( -- )
 
-     initiate-seed
      initSprites
      720 220  2dup  SetSize  SetWaSize
      c" About this Program"  SetTitleText: self
@@ -165,7 +164,6 @@ hello+" Forth for Risc OS"
                 here c@ 1+ allot 0 c, ;
 
 config" config"
-
 
 
 : turn-cursor-off HideCaret: mainwindow ;

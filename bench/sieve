@@ -17,7 +17,7 @@ variable eflag
 
 : run-sieve
     time-reset
-    25 0 do
+    bench_times 0 do
         flags 8190 + eflag !
         benchmark drop ." ."
     loop

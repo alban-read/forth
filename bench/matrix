@@ -1,10 +1,6 @@
 
 cr .( Loading Matrix Multiplication benchmark...)
 
-variable seed
-
-: initiate-seed ( -- )  74755 seed ! ;
-: random  ( -- n )  seed @ 1309 * 13849 + 65535 and dup seed ! ;
 
 200 constant row-size
 row-size cells constant row-byte-size
@@ -33,7 +29,7 @@ align create imr mat-byte-size allot
 
 : run-matrix  ( -- )
   time-reset
-  25 0 do
+  bench_times 0 do
    initiate-seed
    ima initiate-matrix
    imb initiate-matrix

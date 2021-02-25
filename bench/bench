@@ -1,9 +1,22 @@
+25 value bench_times
+
+: statement
+  ." Running benchmarks " bench_times . ." times" cr ;
+
+statement
+
 fload bench.fib
 fload bench.sieve
 fload bench.matrix
-cr .( running Fib 25 times.)
+fload bench.graphics
+
+
+cr .( running Fib )
 run-fib
-cr .( running Sieve 25  times.)
+cr .( running Sieve )
 run-sieve
-cr .( running Matrix 25 times.)
+cr .( running Matrix )
 run-matrix
+cr .( running Graphics )
+run-graphics-1
+

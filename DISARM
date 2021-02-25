@@ -217,11 +217,7 @@ create int0   -4 dp +!
 
 forth definitions
 
-1024 value runaway
-0 value runawaycnt
-
 : DIS   ( a -- )           \ disassemble from address
-        0 to runawaycnt
         [ DISARM ] dup to maxcp CP !
         base @ >r HEX
         0 to STOPNOW
@@ -229,10 +225,6 @@ forth definitions
         BEGIN   CP @ ." (" DUP 6 U.R ." ) " INST
 \                CP @ OVER - 2DUP SPACE DUMP| 69 COL TYPE_
                 ?STACK CR
-                1 +TO runawaycnt
-                runaway runawaycnt < if
-                 abort" run away decompile aborted"
-		then
                 4 cp +!
                 maxcp cp @ >= if 0 to stopnow then
                 stopnow

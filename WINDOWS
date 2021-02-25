@@ -58,11 +58,6 @@ code drawcursor ( x y x1 y1 --  )
  swi " OS_Plot"
 next c;
 
-\ using OS SetColour
-\ 24 bits of colour
-\ &ffffff
-\  bbggrr
-
 code SetGraphicsColour
   mov r1, tos
   mov r0, # 0
@@ -84,12 +79,14 @@ code SetGraphicsBgColour
   ldmfd sp !, { tos }
 next c;
 
+
 code SetTextBgColour
   mov r1, tos
   mov r0, #  %1010000
   swi " OS_SetColour"
   ldmfd sp !, { tos }
 next c;
+
 
 
 : paper
@@ -520,11 +517,7 @@ variable caretpos 64 allot
 create screenmem 20 1024 * allot
 
 0 value spron
-
 &AA0000  value fcolr
-&AA0000  value pcolr
-&FFFFFF  value gcolr
-
 77 value bcolr
 
 :class text-window <super window
@@ -732,9 +725,15 @@ next c;
        ToScreen
        &thescreen cols + &thescreen rows 1- cols * dup>r cmove
        &thescreen r> + cols blank
-       rows 1- -32* 0 -32 cols 16* rows -32* 0 hWnd Wimp_BlockCopy
-       spron if Redraw: self then
+       rows 1- -32* 0 -32 cols 16* rows -32* 0 hWnd
 
+       spron if
+        vsync
+        Wimp_BlockCopy
+        Redraw: self
+       else
+        Wimp_BlockCopy
+       then
    ;
 
 :m PutCR: ( -- )
@@ -910,11 +909,7 @@ create PollBuf 256 allot
 \     10 of        On_ScrolReq: [[ getwin ]] endof
 \     13 of On_NonZeroPollWord: [[ getwin ]] endof
      ( otherwise ) nip ( the pointer to block )
-    endcase
-    toSprite
-    gcolr SetGraphicsColour
-    pcolr SetGraphicsBgColour
-    ;
+    endcase toSprite ;
 
 :m ClassInit:
 
@@ -1025,8 +1020,6 @@ create d&dbuf 64 allot
 : w?cr       wgetxy drop + wgetcolrow drop > if cr then ;
 
 : wcls       Cls: outwindow  ;
-
-: show Redraw: mainwindow ;
 
 : window-io     ( -- )                  \ reset to Forth IO words
                 ['] wemit      is emit

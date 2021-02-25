@@ -1,0 +1,61 @@
+\ testing background sprite
+
+cr .( Loading Graphics bench ... )
+
+initiate-seed
+
+: rcirc
+  random SetGraphicsColour
+  800 rnd
+  800 rnd
+  2dup
+  100 rnd +
+  swap
+  100 rnd +
+  2swap
+  fillcircle ;
+
+
+: rrect
+  random SetGraphicsColour
+  1536 rnd
+  1024 rnd
+  2dup
+  100 rnd + 10 +
+  swap
+  100 rnd + 10 +
+  fillrect ;
+
+: rline
+  random SetGraphicsColour
+  1536 rnd
+  1024 rnd
+  1500 rnd
+  1024 rnd
+  line ;
+
+: rrects
+  1000 1 do
+   rrect
+  loop ;
+
+: rlines
+  1000 1 do
+   rline
+  loop ;
+
+
+: rcircs
+  1000 1 do
+   rcirc
+  loop ;
+
+
+: run-graphics-1
+  time-reset
+  bench_times 0 do
+   rlines
+   rrects
+   rcircs
+  loop
+  cr ." Graphics 1 " .elapsed cr ;
